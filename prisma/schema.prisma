@@ -1,0 +1,352 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("MONGODB_URI")
+}
+
+model User {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  email             String?   @unique
+  address           String?
+  handle            String?
+  walletAddress     String?   @unique
+  passwordHash      String?
+  username          String?   @unique
+  displayName       String?
+  bio               String?
+  avatarRef         String?
+  bannerRef         String?
+  avatarCid         String?
+  avatarUrl         String?
+  bannerCid         String?
+  bannerUrl         String?
+  twitterUrl        String?
+  instagramUrl      String?
+  behanceUrl        String?
+  dribbbleUrl       String?
+  artstationUrl     String?
+  youtubeUrl        String?
+  tiktokUrl         String?
+  farcasterUrl      String?
+  websiteUrl        String?
+  isCreator         Boolean   @default(false)
+  verified          Boolean   @default(false)
+  verificationTx    String?
+  verificationTxHash String?
+  verifiedAt        DateTime?
+  skills            String[]  @default([])
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  posts           Post[]
+  notifications   Notification[]
+  invoicesIssued  Invoice[]   @relation("InvoiceIssuer")
+  invoicesReceived Invoice[]  @relation("InvoiceRecipient")
+  invoicesPaid    Invoice[]   @relation("InvoicePayer")
+  creatorProfile  CreatorProfile?
+  burnLinks       BurnLink[]
+  files           File[]
+  accessGrants    AccessGrant[]
+  transactions    Transaction[]
+  subscriptions   SubscriberGrant[]
+  contentPurchases ContentPurchase[]
+  tipsGiven       Tip[]       @relation("TipFrom")
+  tipsReceived    Tip[]       @relation("TipTo")
+  conversations   Participant[]
+  messages        Message[]
+  reactions       Reaction[]
+  following       Follow[]    @relation("follower")
+  followers       Follow[]    @relation("following")
+}
+
+model CreatorProfile {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String    @unique @db.ObjectId
+  user            User      @relation(fields: [userId], references: [id])
+  handle          String    @unique
+  subscriberCount Int       @default(0)
+  totalEarnings   Float     @default(0)
+  totalViews      Int       @default(0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  tiers           SubscriptionTier[]
+  content         CreatorContent[]
+}
+
+model SubscriptionTier {
+  id               String    @id @default(auto()) @map("_id") @db.ObjectId
+  creatorProfileId String    @db.ObjectId
+  creator          CreatorProfile @relation(fields: [creatorProfileId], references: [id])
+  tierIndex        Int
+  name             String
+  description      String?
+  priceApt         Float
+  perks            String[]
+  isActive         Boolean   @default(true)
+  grants           SubscriberGrant[]
+}
+
+model SubscriberGrant {
+  id             String    @id @default(auto()) @map("_id") @db.ObjectId
+  subscriberId   String    @db.ObjectId
+  subscriber     User      @relation(fields: [subscriberId], references: [id])
+  tierId         String    @db.ObjectId
+  tier           SubscriptionTier @relation(fields: [tierId], references: [id])
+  creatorAddress String
+  status         String    @default("active")
+  renewsAt       DateTime
+  onChainTxHash  String?
+  createdAt      DateTime  @default(now())
+}
+
+model CreatorContent {
+  id               String    @id @default(auto()) @map("_id") @db.ObjectId
+  creatorProfileId String    @db.ObjectId
+  creator          CreatorProfile @relation(fields: [creatorProfileId], references: [id])
+  onChainContentId Int?
+  title            String
+  description      String?
+  contentType      String
+  category         String?
+  shelbyCid        String
+  thumbnailCid     String?
+  previewCid       String?
+  accessLevel      Int       @default(0)
+  priceApt         Float     @default(0)
+  isActive         Boolean   @default(true)
+  viewCount        Int       @default(0)
+  purchaseCount    Int       @default(0)
+  burnLinkId       String?   @db.ObjectId
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  purchases        ContentPurchase[]
+}
+
+model Post {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId       String   @db.ObjectId
+  user         User     @relation(fields: [userId], references: [id])
+  text         String?
+  mediaCid     String?
+  mediaType    String?
+  thumbnailCid String?
+  category     String?
+  viewCount    Int      @default(0)
+  likeCount    Int      @default(0)
+  isPublic     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Notification {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  user      User     @relation(fields: [userId], references: [id])
+  type      String
+  title     String
+  body      String
+  href      String?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model Invoice {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  invoiceNumber String   @unique
+  issuerId      String   @db.ObjectId
+  issuer        User     @relation("InvoiceIssuer", fields: [issuerId], references: [id])
+  recipientId   String?  @db.ObjectId
+  recipient     User?    @relation("InvoiceRecipient", fields: [recipientId], references: [id])
+  payerId       String?  @db.ObjectId
+  payer         User?    @relation("InvoicePayer", fields: [payerId], references: [id])
+  clientName    String
+  clientEmail   String?
+  description   String
+  amountApt     Float
+  currency      String   @default("APT")
+  status        String   @default("pending")
+  notes         String?
+  paymentToken  String?  @unique
+  txHash        String?
+  paidAt        DateTime?
+  pdfBlobId     String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model ContentPurchase {
+  id        String    @id @default(auto()) @map("_id") @db.ObjectId
+  contentId String    @db.ObjectId
+  content   CreatorContent @relation(fields: [contentId], references: [id])
+  buyerId   String    @db.ObjectId
+  buyer     User      @relation(fields: [buyerId], references: [id])
+  amountApt Float
+  feeApt    Float
+  netApt    Float
+  txHash    String    @unique
+  createdAt DateTime  @default(now())
+}
+
+model File {
+  id        String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String    @db.ObjectId
+  owner     User      @relation(fields: [userId], references: [id])
+  blobId    String
+  fileName  String
+  mimeType  String
+  fileSize  Int
+  dataBase64 String?
+  createdAt DateTime  @default(now())
+  burnLink  BurnLink?
+}
+
+model BurnLink {
+  id                  String    @id @default(auto()) @map("_id") @db.ObjectId
+  slug                String    @unique
+  userId              String    @db.ObjectId
+  owner               User      @relation(fields: [userId], references: [id])
+  fileId              String    @unique @db.ObjectId
+  file                File      @relation(fields: [fileId], references: [id])
+  title               String?
+  priceApt            Float     @default(0)
+  expiresAt           DateTime?
+  maxViews            Int?
+  burnAfterRead       Boolean   @default(false)
+  oneTime             Boolean   @default(false)
+  walletGated         Boolean   @default(false)
+  allowedWallets      String[]
+  passwordHash        String?
+  disableDownload     Boolean   @default(false)
+  viewOnly            Boolean   @default(false)
+  screenshotProtected Boolean   @default(false)
+  watermarkWallet     Boolean   @default(false)
+  nftGated            Boolean   @default(false)
+  nftCollectionAddr   String?
+  tokenBalanceGate    Float?
+  isActive            Boolean   @default(true)
+  viewCount           Int       @default(0)
+  uploadTxHash        String?
+  storageTxHash       String?
+  onChainId           String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  accessGrants        AccessGrant[]
+  transactions        Transaction[]
+  messages            Message[]
+}
+
+model AccessGrant {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  burnLinkId      String    @db.ObjectId
+  burnLink        BurnLink  @relation(fields: [burnLinkId], references: [id])
+  userId          String    @db.ObjectId
+  user            User      @relation(fields: [userId], references: [id])
+  walletAddress   String
+  viewsUsed       Int       @default(0)
+  accessWindowEnd DateTime?
+  viewToken       String?
+  createdAt       DateTime  @default(now())
+}
+
+model Transaction {
+  id                 String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId             String    @db.ObjectId
+  user               User      @relation(fields: [userId], references: [id])
+  burnLinkId         String?   @db.ObjectId
+  burnLink           BurnLink? @relation(fields: [burnLinkId], references: [id])
+  type               String
+  direction          String
+  amountApt          Float
+  feeApt             Float     @default(0)
+  netApt             Float
+  counterpartyWallet String?
+  description        String
+  txHash             String    @unique
+  status             String    @default("confirmed")
+  createdAt          DateTime  @default(now())
+}
+
+model Tip {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  fromUserId String   @db.ObjectId
+  from       User     @relation("TipFrom", fields: [fromUserId], references: [id])
+  toUserId   String   @db.ObjectId
+  to         User     @relation("TipTo", fields: [toUserId], references: [id])
+  amountApt  Float
+  feeApt     Float
+  netApt     Float
+  message    String?
+  txHash     String   @unique
+  createdAt  DateTime @default(now())
+}
+
+model Follow {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  followerId  String   @db.ObjectId
+  follower    User     @relation("follower", fields: [followerId], references: [id])
+  followingId String   @db.ObjectId
+  following   User     @relation("following", fields: [followingId], references: [id])
+  createdAt   DateTime @default(now())
+
+  @@unique([followerId, followingId])
+}
+
+model Conversation {
+  id           String        @id @default(auto()) @map("_id") @db.ObjectId
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  participants Participant[]
+  messages     Message[]
+}
+
+model Participant {
+  id             String       @id @default(auto()) @map("_id") @db.ObjectId
+  conversationId String       @db.ObjectId
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  userId         String       @db.ObjectId
+  user           User         @relation(fields: [userId], references: [id])
+
+  @@unique([conversationId, userId])
+}
+
+model Message {
+  id             String       @id @default(auto()) @map("_id") @db.ObjectId
+  conversationId String       @db.ObjectId
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  senderId       String       @db.ObjectId
+  sender         User         @relation(fields: [senderId], references: [id])
+  type           String       @default("TEXT")
+  content        String?
+  burnLinkId     String?      @db.ObjectId
+  burnLink       BurnLink?    @relation(fields: [burnLinkId], references: [id])
+  createdAt      DateTime     @default(now())
+  reactions      Reaction[]
+}
+
+model Reaction {
+  id        String  @id @default(auto()) @map("_id") @db.ObjectId
+  messageId String  @db.ObjectId
+  message   Message @relation(fields: [messageId], references: [id])
+  userId    String  @db.ObjectId
+  user      User    @relation(fields: [userId], references: [id])
+  emoji     String
+
+  @@unique([messageId, userId, emoji])
+}
+
+model AnalyticsEvent {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  creatorId  String   @db.ObjectId
+  contentId  String?  @db.ObjectId
+  burnLinkId String?  @db.ObjectId
+  eventType  String
+  walletAddr String?
+  amountApt  Float?
+  createdAt  DateTime @default(now())
+}
