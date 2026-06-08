@@ -1,303 +1,166 @@
 # Forge
 
-**Forge** is a Web3 creator platform on **Aptos ShelbyNet** with **Shelby** blob storage for files and **MongoDB** for profiles, messages, invoices, and analytics.
+Forge is a Web3 creator platform built on Aptos ShelbyNet, combining creator discovery, gated media sharing, wallet-native payments, messaging, and invoices.
 
-Think of it as: **Behance + WeTransfer + wallet-native payments** — upload gated files as **BurnLinks**, discover creators, message clients, and get paid in APT.
-
----
-
-## What Forge Does (current)
-
-### For anyone (wallet optional)
-
-- **Landing** at `/` — connect wallet when ready
-- **Creators** at `/hire` — discover talent by skill or name
-- **BurnLinks** at `/b/[slug]` — pay APT to unlock a file (no Forge account required)
-- **Public profiles** at `/[handle]`
-
-### After connecting wallet
-
-- **Home** (`/home`) — your BurnLinks dashboard and stats
-- **Upload** (`/upload`) — create BurnLinks or public posts (files → Shelby, metadata → MongoDB)
-- **Wallet** (`/wallet`) — earned/spent/net/fees, invoices, transaction history
-- **Messages** (`/chat`) — DMs with Pusher realtime (stored in MongoDB)
-- **Profile setup** (`/onboarding`) — optional; handle, bio, skills, social links (no tiers required)
-
-### Payments model
-
-- **Unlock payments** go **100% to the creator** on-chain
-- **5% platform fee** is tracked in the database for reporting (not deducted on-chain from unlocks)
-- **Verification badge** — one-time 10 APT to platform treasury
-- **Blob owners** unlock their own files for free
-
-### Data storage split
-
-| Data | Where |
-|------|--------|
-| Profile text, skills, socials, messages, invoices, transactions | **MongoDB** (Prisma) |
-| Files, avatars, banners, invoice PDFs | **Shelby blobs** |
+The app is designed for creators and clients to connect without traditional signups: wallets authenticate users, Shelby blobs store files and media, and MongoDB stores profiles, posts, invoices, chats, and analytics.
 
 ---
 
-## Navigation
+## What Forge Currently Includes
 
-Top navbar (desktop + mobile): **Home · Wallet · Messages · Creators**
+### Public experience
+- **Landing page** at `/` with wallet connect and discovery.
+- **Creator discovery** at `/hire` and `/lobby`.
+- **Creator profiles** via `/[handle]`.
+- **BurnLinks** at `/b/[slug]` for paid or free gated downloads.
+- **Invoice payment pages** at `/pay/invoice/[token]`.
 
-- **Home** → `/` when logged out, `/home` when session exists
-- **Wallet / Messages** → require wallet session (auto-synced on connect)
-- **Creators** → `/hire` (public)
-- **Share Work** → `/upload` (visible when wallet connected)
+### Wallet-enabled creator experience
+- **Dashboard** at `/home` for creator analytics and BurnLink management.
+- **Upload** page at `/upload` for BurnLinks and public posts.
+- **Wallet overview** at `/wallet` with earnings, spend, invoices, and transaction history.
+- **Chat** at `/chat` for direct messaging and invoice sharing.
+- **Optional onboarding** at `/onboarding` for profile setup, skills, and socials.
 
-Profile appears in the **right sidebar** on authenticated pages — not a separate profile route.
+### Payments and asset flow
+- **Native APT payments** for unlocks, tips, invoices, and verification.
+- **Unlock payments** are attributed to creators on-chain.
+- **Platform fee tracking** is recorded in MongoDB for reporting.
+- Shelby blob owners can access their own uploads without paying.
 
 ---
 
-## Auth
+## Key Features
 
-- **Wallet-only** — no email/Gmail registration
-- Connect Petra (or compatible wallet) on ShelbyNet
-- `POST /api/auth/session` creates a JWT cookie (`forge_session`)
-- `WalletSessionSync` keeps the backend session aligned with auto-connected wallets
+### BurnLinks
+- Upload private files to Shelby blob storage.
+- Create a BurnLink with a unique slug.
+- Configure unlock settings and paid access.
+- Unlock flow verifies on-chain APT payments and grants secure access.
+
+### Public posts
+- Compose posts with optional media.
+- Publish images, video, or audio to feeds and profiles.
+- Store media in Shelby and metadata in MongoDB.
+
+### Creator profiles
+- Profile pages show avatar, banner, bio, skills, and wallet address.
+- Follow, tip, message, and subscribe actions are supported.
+- Verified creators can display a badge.
+- Work and BurnLink listings are exposed on profile pages.
+
+### Direct messaging
+- Real-time chat powered by Pusher.
+- New DM creation with user search.
+- Invoices and BurnLinks can be shared in conversations.
+
+### Invoicing
+- Create invoices with client details, amount, and notes.
+- Share invoice links publicly or via DM.
+- Pay invoices through Aptos wallet transactions.
+- Generate invoice PDFs and store them in Shelby.
+
+### Wallet and creator analytics
+- Track earnings, spend, and net position.
+- Monitor invoice status, payouts, and transaction history.
+- Dashboard analytics surface creator performance and revenue.
 
 ---
 
-## Architecture Overview
+## Architecture
 
+- **Frontend**: Next.js 15, React 19, Tailwind CSS v4
+- **Auth**: Wallet-based authentication with Petra-compatible wallets and JWT session sync
+- **Database**: MongoDB with Prisma for users, posts, burnlinks, chats, invoices, and analytics
+- **Storage**: Shelby blob storage for uploaded files, avatars, banners, and invoice assets
+- **Blockchain**: Aptos ShelbyNet for native APT payments and contract verification
+- **Realtime**: Pusher for chat and notification updates
+
+---
+
+## Technology Stack
+
+- `next` 15
+- `react` 19
+- `tailwindcss` 4
+- `prisma` / `@prisma/client`
+- `mongodb`
+- `@aptos-labs/wallet-adapter`
+- `@shelby-protocol/sdk`
+- `pusher` / `pusher-js`
+- `zod`, `react-hook-form`, `framer-motion`, `recharts`
+
+---
+
+## Local Development
+
+Requirements:
+- Node.js 20+ (or compatible with Next 15)
+- MongoDB connection
+- Aptos wallet / ShelbyNet endpoint for on-chain flows
+
+Install dependencies:
+
+```bash
+npm install
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                        Next.js 15 App                           │
-│  (React 19 · Tailwind v4 · Wallet Adapter · Pusher client)      │
-└────────────┬───────────────────────────────┬────────────────────┘
-             │                               │
-    ┌────────▼────────┐             ┌────────▼────────┐
-    │  MongoDB Atlas  │             │  Aptos ShelbyNet  │
-    │  (Prisma ORM)   │             │  Native APT txs   │
-    │                 │             │  CULT Move module │
-    │  Users, posts,  │             └────────┬──────────┘
-    │  burnlinks,     │                      │
-    │  invoices,      │             ┌────────▼──────────┐
-    │  social graph,  │             │  Shelby Blob      │
-    │  notifications  │             │  Storage (SDK)    │
-    └─────────────────┘             │  All media/files  │
-                                    └───────────────────┘
+
+Run the app locally:
+
+```bash
+npm run dev
 ```
 
-| Layer | Technology | Stores |
-|-------|------------|--------|
-| **Frontend** | Next.js 15, React 19, Tailwind v4 | UI, wallet signing |
-| **Backend** | Next.js API routes, JWT auth | Business logic |
-| **Database** | MongoDB + Prisma | Profiles, posts, social graph, invoices, analytics |
-| **On-chain** | Aptos ShelbyNet, CULT Move module | Creator registry, subscriptions, tips (ShelbyUSD in contract) |
-| **Payments** | Native APT transfers + tx verification | Tips, unlocks, subscriptions, invoices, verification |
-| **Storage** | `@shelby-protocol/sdk` on ShelbyNet | Avatars, banners, uploads, post media, invoice PDFs |
-| **Realtime** | Pusher | Chat messages, notifications, invoice payment events |
+Build for production:
+
+```bash
+npm run build
+```
+
+Generate Prisma client after schema changes:
+
+```bash
+npm run db:generate
+```
+
+Seed the database:
+
+```bash
+npm run db:seed
+```
+
+Compile the Move contract:
+
+```bash
+npm run contract:compile
+```
 
 ---
 
-## Design System
+## Repository
 
-Forge uses a warm, professional palette inspired by Behance but branded for Web3:
+Forge source and documentation are available at:
 
-| Token | Value | Usage |
-|-------|-------|-------|
-| Brand orange | `#dc5429` | Buttons, accents, labels |
-| Text dark | `#313131` | Headings, body text |
-| Background | `#d4d4d4` | Page background (no pure white) |
-| Elevated surfaces | `#ebebeb` | Cards, modals, navbar |
-
-Typography: **Playfair Display** for display headings, **DM Sans** for UI and body.
+https://github.com/0xvictoren/Forge
 
 ---
 
-## Core Features (Detailed)
+## Project structure
 
-### 1. Home Feed (`/`)
-
-The main discovery experience:
-
-- **Recommended tab** — public posts and creator content from all users
-- **Following tab** — content only from creators you follow
-- **Category filter** — Graphic Design, 3D Art, UI/UX, Photography, Motion Design, Illustration, Audio
-- **Infinite scroll** with pagination via `/api/feed`
-- Behance-style project grid with creator info, engagement stats, and APT pricing
-
-All feed data comes from MongoDB — no mock or placeholder content.
+- `app/` – Next.js app routes, landing, onboarding, chat, wallet, upload, hire, creator pages
+- `components/` – shared UI, layout, forms, chat, feed, and profile components
+- `lib/` – business logic, API helpers, auth, Aptos integration, Shelby integration, notifications
+- `prisma/` – schema and database models
+- `move/` – Aptos Move contract sources and configuration
+- `public/` – static assets
+- `scripts/` – seed and deployment scripts
 
 ---
 
-### 2. Lobby — Creator Discovery (`/lobby`)
+## Notes
 
-A dedicated hub to find creators:
+Forge is built as a Web3-native creator marketplace that combines secure file sharing, creator discovery, and native Aptos payments with a modern discovery feed and messaging system.
 
-- Profile picture, username, bio, skill tags
-- **Follow / Unfollow** button
-- **Search** by name, bio, or handle
-- **Skill filter** dropdown
-- Pagination / load more
-- Accessible from navbar and global search
-
----
-
-### 3. Hire Page (`/hire`)
-
-Web3 freelancer marketplace landing:
-
-- Orange hero banner with creator search
-- Search redirects to Lobby with skill/creator filters
-- “Why hire on Forge” and hiring steps sections
-- Browse Creators CTA → Lobby
-
----
-
-### 4. Creator Profiles (`/@handle`)
-
-Behance-style two-column profile layout:
-
-**Header**
-- Banner and avatar (always from Shelby when uploaded)
-- Display name, verified badge, bio, wallet address
-- Follow button (visitors) or Edit Profile (owner)
-- Subscribe / Tip / Message actions
-
-**Stats (real data)**
-- Posts · Uploads · Followers · Following · Revenue
-
-**Tabs**
-
-| Tab | Contents |
-|-----|----------|
-| **Work** | Sent invoices, received invoices (owner only), copy payment links |
-| **BurnLinks** | Private uploaded files only — thumbnail, type, date, downloads, share |
-| **Services** | Skill tags — add, edit, remove, reorder (owner) |
-
-**Posting**
-- Inline post composer on own profile (text + media)
-- Posts appear on profile, Recommended feed, and Following feed
-
-**Verification**
-- “Verify Now” — 10 APT on-chain payment to platform treasury
-- Verified badge shown on profile, lobby cards, and invoices
-
----
-
-### 5. Onboarding (`/onboarding`) — optional
-
-Two-step wizard:
-
-1. **Create your profile** — avatar/banner (Shelby), handle, display name, bio
-2. **Skills & social links** — comma-separated skills; optional X, Instagram, Behance, Dribbble, ArtStation
-
-Profile fields save to MongoDB via `POST /api/onboarding`. Skip anytime — you can upload BurnLinks without a profile.
-
----
-
-### 6. BurnLink — Programmable File Sharing
-
-**Upload** (`/upload?mode=file`) — private files, not shown in public feeds.
-
-**Flow**
-1. User selects file (drag-and-drop supported)
-2. File uploaded to Shelby Blob Storage via `@shelby-protocol/sdk`
-3. BurnLink record created with unique slug
-4. Optional: price in APT, max views, burn-after-read, screenshot protection
-
-**Unlock** (`/b/[slug]`)
-- Free: instant access token
-- Paid: wallet connects → APT transfer to **creator** → tx verified on ShelbyNet → `AccessGrant` in MongoDB
-- **Owner** of the blob unlocks for free (no payment)
-- API: `POST /api/burnlinks/[slug]/unlock` — always returns JSON `{ success, viewToken, redirect }`
-
-**Secure viewer** (`/view/[slug]?token=...`)
-- Streams file from Shelby via `/api/media/shelby` (downloads preserve original file extension)
-- Download count and analytics recorded
-
----
-
-### 7. Public Posts (`/upload?mode=post`)
-
-Twitter/X-style composer:
-
-- Optional text + image, video, or audio
-- Category tag for feed filtering
-- Upload progress indicator
-- Media previews (no filenames shown)
-- Stored on Shelby; metadata in MongoDB `Post` model
-- Appears in feeds and on creator profile
-
----
-
-### 8. Subscriptions & Tips
-
-**Subscriptions**
-- Creators define up to 3 tiers during onboarding
-- Fans subscribe via wallet modal → APT payment → `/api/subscriptions/subscribe`
-- On-chain tx verified with retry logic for ShelbyNet indexing delays
-- 30-day subscription grants stored in DB
-
-**Tips**
-- Preset or custom APT amounts with optional message
-- Payment verified on-chain; creator notified
-
-**Note:** The deployed CULT Move module uses **ShelbyUSD** for on-chain subscribe/tip functions. The app currently processes **native APT** transfers with backend verification. Contract is deployed and initialised; full wallet → contract wiring for ShelbyUSD flows can be added incrementally.
-
----
-
-### 9. Direct Messaging (`/chat`)
-
-- Conversation list and threaded chat UI
-- **New DM modal** — following list + username search
-- Send text messages and BurnLink attachments
-- **Invoice messages** — send invoices through DMs
-- Real-time delivery via **Pusher** (`conversation-{id}` channels)
-- Message notifications pushed to recipients
-
----
-
-### 10. Invoicing (`/wallet/invoices`)
-
-Full invoice lifecycle:
-
-**Create**
-- Client name, email, description, amount (APT), notes
-- Unique invoice ID and payment token generated automatically
-
-**Share**
-- **Copy Link** — `/pay/invoice/{token}`
-- **Send via DM** — opens conversation with invoice message
-- **Download PDF/HTML** — generated with Forge branding, stored on Shelby
-
-**Pay** (`/pay/invoice/[token]`)
-- Public payment page with invoice details
-- Wallet payment → Aptos tx verification
-- Status updates **Pending → Paid** via Pusher (no manual refresh)
-- Transaction hash, amount, and payment date recorded
-
-**Profile Work tab**
-- Sent and received invoices with status for the profile owner
-
----
-
-### 11. Wallet Dashboard (`/wallet`)
-
-| Section | Description |
-|---------|-------------|
-| **Overview** | Total earned, spent, net position, platform fees |
-| **Invoices** | Create, list, copy link, send via DM, download |
-| **Payouts** | Payout configuration |
-| **Transactions** | Full ledger from `/api/wallet/transactions` |
-
-All figures from real `Transaction` records in MongoDB.
-
----
-
-### 12. Creator Dashboard (`/dashboard`)
-
-**Insights** (moved from Wallet — real analytics only):
-
-- Post views, engagement, downloads, revenue, paid unlocks
-- Daily activity chart
-- Earnings over time
-- Content performance per item
 
 Data sourced from `AnalyticsEvent`, transactions, posts, and creator content — no mock data.
 

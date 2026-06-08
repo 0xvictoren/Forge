@@ -16,7 +16,7 @@ export function Logo({
       <Image
         src="/logo.webp"
         alt="Forge"
-        width={32}
+        width={64}
         height={32}
         className={cn("rounded-lg object-cover", iconClassName)}
         priority

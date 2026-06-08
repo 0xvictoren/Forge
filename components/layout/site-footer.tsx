@@ -10,7 +10,10 @@ export function SiteFooter() {
           English
         </div>
         <nav className="flex flex-wrap gap-6">
-          <Link href="#" className="hover:text-[var(--text-primary)]">
+          <Link
+            href="https://github.com/0xvictoren/Forge"
+            className="hover:text-[var(--text-primary)]"
+          >
             Github
           </Link>
           <Link href="/privacy" className="hover:text-[var(--text-primary)]">
