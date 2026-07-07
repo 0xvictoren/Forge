@@ -4,6 +4,8 @@ import { isProtectedBlob, validateSignedMediaRequest } from "@/lib/burnlink-acce
 import { checkAssetBlobAccess } from "@/lib/asset-access";
 import { resolveBlobFileMeta, sessionOwnsBlob } from "@/lib/blob-file-meta";
 import { getSessionUser } from "@/lib/auth";
+import { recordLibraryActivity } from "@/lib/library-activity";
+import { prisma } from "@/lib/db";
 import {
   buildDownloadResponseHeaders,
   mimeFromFileName,
@@ -73,6 +75,21 @@ export async function GET(request: NextRequest) {
         queryFileName && queryFileName.includes(".") ? queryFileName : meta.fileName || blob.fileName
       );
       const finalMime = meta.mimeType || blob.mimeType || mimeFromFileName(finalName);
+
+      if (session) {
+        const asset = await prisma.asset.findFirst({
+          where: { blobRef: ref },
+          select: { id: true, title: true },
+        });
+        if (asset) {
+          await recordLibraryActivity({
+            userId: session.id,
+            type: "DOWNLOAD",
+            title: asset.title,
+            assetId: asset.id,
+          });
+        }
+      }
 
       return new NextResponse(new Uint8Array(blob.data), {
         headers: buildDownloadResponseHeaders(finalName, finalMime, true),

@@ -12,21 +12,20 @@ import { getStoredReturnPath, navigateToReturnPath } from "@/lib/auth-return-nav
 export function WalletSessionSync() {
   const router = useRouter();
   const { connected, account } = useWallet();
-  const { setUser, setWallet } = useAppStore();
+  const { user, setUser, setWallet } = useAppStore();
   const syncing = useRef(false);
-  const lastAddress = useRef<string | null>(null);
+  const syncedAddress = useRef<string | null>(null);
 
   useEffect(() => {
     if (!connected || !account?.address) {
-      lastAddress.current = null;
+      syncedAddress.current = null;
       return;
     }
 
     const walletAddress = account.address.toString();
-    if (syncing.current || lastAddress.current === walletAddress) return;
+    if (user || syncing.current || syncedAddress.current === walletAddress) return;
 
     syncing.current = true;
-    lastAddress.current = walletAddress;
 
     fetch("/api/auth/session", {
       method: "POST",
@@ -36,6 +35,7 @@ export function WalletSessionSync() {
       .then(async (res) => {
         const data = await parseJsonResponse<{ user?: SessionUser; error?: string }>(res);
         if (data.user) {
+          syncedAddress.current = walletAddress;
           setUser(data.user);
           setWallet(walletAddress);
           if (getStoredReturnPath()) {
@@ -49,7 +49,7 @@ export function WalletSessionSync() {
       .finally(() => {
         syncing.current = false;
       });
-  }, [connected, account?.address, setUser, setWallet, router]);
+  }, [connected, account?.address, user, setUser, setWallet, router]);
 
   return null;
 }

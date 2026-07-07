@@ -1,25 +1,40 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { Wallet, X } from "lucide-react";
 import { ConnectWallet } from "@/components/wallet/connect-wallet";
 import { messageForReturnPath, normalizeReturnPath } from "@/lib/auth-redirect";
 import { AUTH_RETURN_KEY } from "@/lib/nav-config";
+import { useAppStore } from "@/lib/store";
 import { toast } from "sonner";
+import { navigateToReturnPath } from "@/lib/auth-return-nav";
 
 export function AuthRedirectNotice() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const returnPath = normalizeReturnPath(searchParams.get("return"));
+  const { user } = useAppStore();
+  const { connected } = useWallet();
   const [dismissed, setDismissed] = useState(false);
+
+  const isAuthenticated = !!user;
 
   useEffect(() => {
     if (!returnPath) return;
     sessionStorage.setItem(AUTH_RETURN_KEY, returnPath);
-    toast.info(messageForReturnPath(returnPath), { duration: 6000 });
-  }, [returnPath]);
+    if (!isAuthenticated) {
+      toast.info(messageForReturnPath(returnPath), { duration: 6000 });
+    }
+  }, [returnPath, isAuthenticated]);
 
-  if (!returnPath || dismissed) return null;
+  useEffect(() => {
+    if (!isAuthenticated || !connected || !returnPath) return;
+    navigateToReturnPath(router);
+  }, [isAuthenticated, connected, returnPath, router]);
+
+  if (!returnPath || dismissed || isAuthenticated) return null;
 
   const message = messageForReturnPath(returnPath);
   const destination = returnPath.replace(/^\//, "").split("/")[0] || "this page";

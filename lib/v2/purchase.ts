@@ -6,6 +6,8 @@ import { issueCertificate } from "./certificate";
 import { updateCreatorReputation } from "./reputation";
 import { createNotification } from "@/lib/notifications";
 import { recordAnalyticsEvent } from "@/lib/analytics";
+import { recordLibraryActivity } from "@/lib/library-activity";
+import { revalidatePath } from "next/cache";
 
 export async function completePurchase(input: {
   buyerId: string;
@@ -93,6 +95,16 @@ export async function completePurchase(input: {
   }
 
   await updateCreatorReputation(input.sellerId);
+
+  await recordLibraryActivity({
+    userId: input.buyerId,
+    type: "PURCHASE",
+    title: input.title,
+    assetId: input.assetId,
+    productId: input.productId,
+    amountApt: input.amountApt,
+  });
+  revalidatePath("/library");
 
   return { purchase, certificate, duplicate: false };
 }

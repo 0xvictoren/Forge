@@ -6,7 +6,7 @@ export async function GET() {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const [purchases, certificates, subscriptions, grants, sales, invoices, txs] = await Promise.all([
+  const [purchases, certificates, subscriptions, grants, sales, invoices, txs, ownedAssets, activities] = await Promise.all([
     prisma.purchase.findMany({
       where: { buyerId: user.id },
       orderBy: { createdAt: "desc" },
@@ -67,6 +67,16 @@ export async function GET() {
       orderBy: { createdAt: "desc" },
       take: 15,
     }),
+    prisma.asset.findMany({
+      where: { userId: user.id, status: "published" },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+    }),
+    prisma.libraryActivity.findMany({
+      where: { userId: user.id },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+    }),
   ]);
 
   const assets = purchases
@@ -77,6 +87,7 @@ export async function GET() {
 
   return NextResponse.json({
     assets,
+    ownedAssets,
     purchases,
     bundles,
     certificates,
@@ -85,6 +96,7 @@ export async function GET() {
     sales,
     invoices,
     transactions: txs,
-    history: purchases, // legacy
+    activities,
+    history: activities.length > 0 ? activities : purchases,
   });
 }

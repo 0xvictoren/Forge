@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { isHandleTaken, isValidHandleFormat, normalizeHandle } from "@/lib/username";
 
 export async function POST(request: Request) {
   const user = await getSessionUser();
@@ -10,12 +11,12 @@ export async function POST(request: Request) {
 
   const { handle, tiers, skipTiers } = await request.json();
 
-  if (!handle || !/^[a-zA-Z0-9_]{3,24}$/.test(handle)) {
+  if (!handle || !isValidHandleFormat(handle)) {
     return NextResponse.json({ error: "Invalid handle" }, { status: 400 });
   }
 
-  const taken = await prisma.creatorProfile.findUnique({ where: { handle } });
-  if (taken && taken.userId !== user.id) {
+  const normalized = normalizeHandle(handle);
+  if (await isHandleTaken(normalized, user.id)) {
     return NextResponse.json({ error: "Handle taken" }, { status: 409 });
   }
 
@@ -47,13 +48,13 @@ export async function POST(request: Request) {
   const profile = await prisma.$transaction(async (tx) => {
     await tx.user.update({
       where: { id: user.id },
-      data: { username: handle, isCreator: true },
+      data: { username: normalized, handle: normalized, isCreator: true },
     });
 
     const p = await tx.creatorProfile.upsert({
       where: { userId: user.id },
-      create: { userId: user.id, handle },
-      update: { handle },
+      create: { userId: user.id, handle: normalized },
+      update: { handle: normalized },
     });
 
     await tx.subscriptionTier.deleteMany({

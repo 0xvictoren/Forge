@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { recordLibraryActivity } from "@/lib/library-activity";
 
 export async function GET(
   _request: Request,
@@ -103,7 +105,15 @@ export async function DELETE(
     }
   }
 
+  await recordLibraryActivity({
+    userId: user.id,
+    type: "DELETE",
+    title: asset.title,
+    assetId: asset.id,
+  });
+
   await prisma.asset.delete({ where: { id } });
+  revalidatePath("/library");
 
   return NextResponse.json({ success: true });
 }

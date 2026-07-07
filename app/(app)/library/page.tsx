@@ -9,7 +9,7 @@ export default async function LibraryPage() {
   const user = await getSessionUser();
   if (!user) return null;
 
-  const [purchases, certificates, subscriptions, grants, sales, invoices, txs, ownedBundles] = await Promise.all([
+  const [purchases, certificates, subscriptions, grants, sales, invoices, txs, ownedBundles, ownedAssets, activities] = await Promise.all([
     prisma.purchase.findMany({
       where: { buyerId: user.id },
       orderBy: { createdAt: "desc" },
@@ -60,13 +60,36 @@ export default async function LibraryPage() {
         items: { include: { asset: { select: { id: true, title: true, blobRef: true, fileName: true } } } },
       },
     }),
+    prisma.asset.findMany({
+      where: { userId: user.id, status: "published" },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        title: true,
+        priceApt: true,
+        blobRef: true,
+        fileName: true,
+        isListed: true,
+        createdAt: true,
+      },
+    }),
+    prisma.libraryActivity.findMany({
+      where: { userId: user.id },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+    }),
   ]);
+
+  const purchasedAssetIds = new Set(
+    purchases.filter((p) => p.asset).map((p) => p.asset!.id)
+  );
 
   const isEmpty =
     purchases.length === 0 &&
     certificates.length === 0 &&
     grants.length === 0 &&
-    ownedBundles.length === 0;
+    ownedBundles.length === 0 &&
+    ownedAssets.length === 0;
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -103,6 +126,16 @@ export default async function LibraryPage() {
                 } : null,
                 product: p.product,
                 certificate: p.certificate,
+              })),
+              ownedAssets: ownedAssets.map((a) => ({
+                id: a.id,
+                title: a.title,
+                priceApt: a.priceApt,
+                blobRef: a.blobRef,
+                fileName: a.fileName,
+                isListed: a.isListed,
+                createdAt: a.createdAt.toISOString(),
+                isPurchased: purchasedAssetIds.has(a.id),
               })),
               certificates: certificates.map((c) => ({
                 id: c.id,
@@ -149,6 +182,15 @@ export default async function LibraryPage() {
                       }
                     : null,
                 })),
+              })),
+              activities: activities.map((a) => ({
+                id: a.id,
+                type: a.type,
+                title: a.title,
+                amountApt: a.amountApt,
+                assetId: a.assetId,
+                productId: a.productId,
+                createdAt: a.createdAt.toISOString(),
               })),
             }}
           />

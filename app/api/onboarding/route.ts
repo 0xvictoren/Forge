@@ -3,6 +3,7 @@ import { getSessionUser, mapDbUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { parseBlobRef } from "@/lib/shelby-public";
 import { profileMediaDbFields } from "@/lib/profile-media";
+import { isHandleTaken, isValidHandleFormat, normalizeHandle } from "@/lib/username";
 
 export async function POST(req: NextRequest) {
   const user = await getSessionUser();
@@ -49,10 +50,10 @@ export async function POST(req: NextRequest) {
   }
 
   if (username) {
-    const taken = await prisma.user.findFirst({
-      where: { username, NOT: { id: user.id } },
-    });
-    if (taken) {
+    if (!isValidHandleFormat(username)) {
+      return NextResponse.json({ error: "Handle must be 3–24 characters (letters, numbers, underscore)" }, { status: 400 });
+    }
+    if (await isHandleTaken(username, user.id)) {
       return NextResponse.json({ error: "Handle taken" }, { status: 409 });
     }
   }
@@ -67,7 +68,7 @@ export async function POST(req: NextRequest) {
   const updated = await prisma.user.update({
     where: { id: user.id },
     data: {
-      ...(username ? { username, handle: username } : {}),
+      ...(username ? { username: normalizeHandle(username), handle: normalizeHandle(username) } : {}),
       ...(displayName !== undefined ? { displayName: displayName || null } : {}),
       ...(bio !== undefined ? { bio: bio || null } : {}),
       ...(avatar ? profileMediaDbFields("avatar", avatar) : {}),
@@ -96,8 +97,8 @@ export async function POST(req: NextRequest) {
   if (username) {
     await prisma.creatorProfile.upsert({
       where: { userId: user.id },
-      create: { userId: user.id, handle: username },
-      update: { handle: username },
+      create: { userId: user.id, handle: normalizeHandle(username) },
+      update: { handle: normalizeHandle(username) },
     });
   }
 

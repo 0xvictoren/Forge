@@ -9,7 +9,7 @@ export function getAptosBrowserClient(): Aptos {
     const apiKey = process.env.NEXT_PUBLIC_APTOS_API_KEY || "";
     aptosBrowserClient = new Aptos(
       new AptosConfig({
-        network: Network.CUSTOM,
+        network: Network.SHELBYNET,
         fullnode:
           process.env.NEXT_PUBLIC_APTOS_NODE_URL ||
           "https://forge-shelby-cdn.b-cdn.net/",

@@ -1,6 +1,8 @@
+import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { inferAssetType } from "./constants";
 import { processAssetMetadata } from "./asset-metadata";
+import { recordLibraryActivity } from "@/lib/library-activity";
 
 export async function createAssetFromBurnLink(burnLinkId: string) {
   const burnLink = await prisma.burnLink.findUnique({
@@ -83,5 +85,12 @@ export async function createAsset(input: {
   });
 
   await processAssetMetadata(asset.id);
+  await recordLibraryActivity({
+    userId: input.userId,
+    type: "UPLOAD",
+    title: input.title,
+    assetId: asset.id,
+  });
+  revalidatePath("/library");
   return asset;
 }

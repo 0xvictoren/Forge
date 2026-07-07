@@ -34,7 +34,7 @@ export function ConnectWallet({ className = "" }: { className?: string }) {
       if (data.user) {
         setUser(data.user);
         setWallet(walletAddress);
-        navigateToReturnPath(router);
+        if (navigateToReturnPath(router)) return;
       }
     },
     [setUser, setWallet, router]
