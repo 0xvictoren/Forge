@@ -40,6 +40,7 @@ export function CloudImport({ onImportSuccess }: Props) {
   const [status, setStatus] = useState<{
     google: boolean;
     googleConfigured: boolean;
+    googleRedirectUri?: string | null;
   } | null>(null);
 
   const [connected, setConnected] = useState(false);
@@ -55,7 +56,11 @@ export function CloudImport({ onImportSuccess }: Props) {
     fetch("/api/import/status")
       .then((r) => r.json())
       .then((d) => {
-        setStatus({ google: d.google, googleConfigured: d.googleConfigured });
+        setStatus({
+          google: d.google,
+          googleConfigured: d.googleConfigured,
+          googleRedirectUri: d.googleRedirectUri,
+        });
         setConnected(d.google);
       })
       .catch(() => {});
@@ -68,7 +73,17 @@ export function CloudImport({ onImportSuccess }: Props) {
       toast.success("Google Drive connected!");
       setConnected(true);
     }
-    if (err) toast.error(`Import error: ${decodeURIComponent(err)}`);
+    if (err) {
+      const decoded = decodeURIComponent(err);
+      if (decoded.includes("redirect_uri_mismatch") || decoded === "redirect_uri_mismatch") {
+        toast.error(
+          "Google redirect URI mismatch. Add this exact URI in Google Cloud Console → Credentials → your OAuth client → Authorized redirect URIs.",
+          { duration: 10000 }
+        );
+      } else {
+        toast.error(`Import error: ${decoded}`);
+      }
+    }
   }, [searchParams]);
 
   const loadFiles = useCallback(async (folderId?: string) => {
@@ -211,7 +226,7 @@ export function CloudImport({ onImportSuccess }: Props) {
           </div>
         </div>
 
-        <div className="mt-5">
+        <div className="mt-5 space-y-3">
           <button
             type="button"
             onClick={() => (connected ? loadFiles(folderStack.at(-1)?.id) : connect())}
@@ -220,6 +235,14 @@ export function CloudImport({ onImportSuccess }: Props) {
             <HardDrive className="h-4 w-4" />
             {connected ? "Refresh Google Drive" : "Connect Google Drive"}
           </button>
+          {status.googleConfigured && status.googleRedirectUri && (
+            <p className="text-xs text-[var(--text-cream)]/50">
+              Google Console redirect URI must be:{" "}
+              <span className="break-all font-mono text-[var(--text-cream)]/70">
+                {status.googleRedirectUri}
+              </span>
+            </p>
+          )}
         </div>
       </div>
 
