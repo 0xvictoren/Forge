@@ -152,14 +152,14 @@ NEXT_PUBLIC_PUSHER_CLUSTER=us3
 2. Enable **Google Drive API**
 3. Add authorized redirect URI (must match exactly):
 
-   `{NEXT_PUBLIC_APP_URL}/api/import/google/callback`
+   `https://forge-alpha-blush.vercel.app/api/import/google/callback`
 
-   e.g. `http://localhost:3000/api/import/google/callback`
+   (local dev: `http://localhost:3000/api/import/google/callback`)
 
 ```env
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
-GOOGLE_REDIRECT_URI=                # Optional override
+GOOGLE_REDIRECT_URI=https://forge-alpha-blush.vercel.app/api/import/google/callback
 ```
 
 `JWT_SECRET` is required for OAuth state and token cookies.

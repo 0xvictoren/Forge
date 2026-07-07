@@ -1,6 +1,9 @@
 import "server-only";
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
+import { getAppUrl, getGoogleOAuthCallbackUrl } from "@/lib/app-url";
+
+export { getAppUrl } from "@/lib/app-url";
 
 export type OAuthProvider = "google" | "dropbox";
 
@@ -20,11 +23,6 @@ function getSecret() {
   return new TextEncoder().encode(secret);
 }
 
-export function getAppUrl() {
-  const raw = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-  return raw.replace(/\/+$/, "");
-}
-
 export function isGoogleOAuthConfigured(): boolean {
   const id = process.env.GOOGLE_CLIENT_ID?.trim();
   const secret = process.env.GOOGLE_CLIENT_SECRET?.trim();
@@ -32,9 +30,7 @@ export function isGoogleOAuthConfigured(): boolean {
 }
 
 export function getGoogleRedirectUri(): string {
-  const override = process.env.GOOGLE_REDIRECT_URI?.trim();
-  if (override) return override.replace(/\/+$/, "");
-  return `${getAppUrl()}/api/import/google/callback`;
+  return getGoogleOAuthCallbackUrl();
 }
 
 export async function setOAuthState(state: string, provider: OAuthProvider) {
