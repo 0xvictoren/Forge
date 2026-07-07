@@ -1,0 +1,12 @@
+[package]
+name = "forge"
+version = "1.0.0"
+
+[addresses]
+forge = "0x8e9918d910feda3733f078af8fcf17e4a07eed9e255f4261779ca1ba55c642b6"
+aptos_framework = "0x1"
+
+[dependencies.AptosFramework]
+git = "https://github.com/aptos-labs/aptos-core.git"
+rev = "testnet"
+subdir = "aptos-move/framework/aptos-framework"

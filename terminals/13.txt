@@ -1,0 +1,7 @@
+---
+pid: 29176
+cwd: "C:\Users\victoren\Desktop\Projects\Forge"
+command: "cd \"C:\\Users\\victoren\\Desktop\\Projects\\Forge\" && npx tsc --noEmit 2>&1"
+started_at: 2026-07-06T15:41:40.138Z
+running_for_ms: 68384973 
+---

@@ -1,0 +1,30 @@
+---
+pid: 30860
+cwd: "C:\Users\victoren\Desktop\Projects\Forge"
+command: "cd \"C:\\Users\\victoren\\Desktop\\Projects\\Forge\" && npx next build 2>&1"
+started_at: 2026-07-06T12:17:16.851Z
+running_for_ms: 80649995 
+---
+   ▲ Next.js 15.5.18
+   - Environments: .env
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully in 20.7s
+   Linting and checking validity of types ...
+Failed to compile.
+
+./app/api/import/dropbox/import/route.ts:26:28
+Type error: Type 'Buffer<ArrayBufferLike>' is not assignable to type 'BlobPart'.
+  Type 'Buffer<ArrayBufferLike>' is not assignable to type 'ArrayBufferView<ArrayBuffer>'.
+    Types of property 'buffer' are incompatible.
+      Type 'ArrayBufferLike' is not assignable to type 'ArrayBuffer'.
+        Type 'SharedArrayBuffer' is missing the following properties from type 'ArrayBuffer': resizable, resize, detached, transfer, transferToFixedLength
+
+  24 |     const { buffer, fileName, mimeType } = await downloadDropboxFile(accessToken, path);
+  25 |
+> 26 |     const blob = new Blob([buffer], { type: mimeType });
+     |                            ^
+  27 |     const upload = await uploadToShelby(blob, fileName, { type: "imports" });
+  28 |
+  29 |     return NextResponse.json({
+Next.js build worker exited with code: 1 and signal: null

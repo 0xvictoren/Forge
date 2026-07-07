@@ -1,0 +1,17 @@
+---
+pid: 25544
+cwd: "C:\Users\victoren\Desktop\Projects\Forge"
+command: "cd \"C:\\Users\\victoren\\Desktop\\Projects\\Forge\" && npx tsc --noEmit 2>&1"
+started_at: 2026-07-06T15:39:07.132Z
+running_for_ms: 68539977 
+---
+app/(app)/onboarding/page.tsx(17,11): error TS2451: Cannot redeclare block-scoped variable 'uploadFile'.
+app/(app)/onboarding/page.tsx(96,9): error TS2451: Cannot redeclare block-scoped variable 'uploadFile'.
+app/(app)/onboarding/page.tsx(207,40): error TS2322: Type 'Promise<ShelbyUploadResult>' is not assignable to type 'void | Promise<void>'.
+  Type 'Promise<ShelbyUploadResult>' is not assignable to type 'Promise<void>'.
+    Type 'ShelbyUploadResult' is not assignable to type 'void'.
+app/(app)/onboarding/page.tsx(221,40): error TS2322: Type 'Promise<ShelbyUploadResult>' is not assignable to type 'void | Promise<void>'.
+  Type 'Promise<ShelbyUploadResult>' is not assignable to type 'Promise<void>'.
+    Type 'ShelbyUploadResult' is not assignable to type 'void'.
+components/upload/cloud-import.tsx(162,22): error TS7009: 'new' expression, whose target lacks a construct signature, implicitly has an 'any' type.
+components/upload/cloud-import.tsx(162,39): error TS2554: Expected 1 arguments, but got 3.

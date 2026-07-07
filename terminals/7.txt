@@ -1,0 +1,26 @@
+---
+pid: 7420
+cwd: "C:\Users\victoren\Desktop\Projects\Forge"
+command: "cd \"C:\\Users\\victoren\\Desktop\\Projects\\Forge\" && npx next build 2>&1"
+started_at: 2026-07-06T14:16:43.387Z
+running_for_ms: 73484992 
+---
+   ▲ Next.js 15.5.18
+   - Environments: .env
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully in 33.7s
+   Linting and checking validity of types ...
+   Collecting page data ...
+unhandledRejection [Error: Cannot find module '../chunks/ssr/[turbopack]_runtime.js'
+Require stack:
+- C:\Users\victoren\Desktop\Projects\Forge\.next\server\pages\_document.js
+- C:\Users\victoren\Desktop\Projects\Forge\node_modules\next\dist\server\require.js
+- C:\Users\victoren\Desktop\Projects\Forge\node_modules\next\dist\server\load-components.js
+- C:\Users\victoren\Desktop\Projects\Forge\node_modules\next\dist\build\utils.js
+- C:\Users\victoren\Desktop\Projects\Forge\node_modules\next\dist\build\worker.js
+- C:\Users\victoren\Desktop\Projects\Forge\node_modules\next\dist\compiled\jest-worker\processChild.js] {
+  type: 'Error',
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [Array]
+}

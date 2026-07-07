@@ -1,0 +1,21 @@
+---
+pid: 5104
+cwd: "C:\Users\victoren\Desktop\Projects\Forge"
+command: "cd \"C:\\Users\\victoren\\Desktop\\Projects\\Forge\" && npx tsc --noEmit 2>&1 | Select-Object -First 25"
+started_at: 2026-07-06T15:26:16.640Z
+running_for_ms: 69309990 
+---
+hooks/use-shelby-image-upload.ts(27,11): error TS2345: Argument of type '(transaction: InputTransactionData) => Promise<AptosSignAndSubmitTransactionOutput>' is not assignable to parameter of type '(transaction: unknown) => Promise<unknown>'.
+  Types of parameters 'transaction' and 'transaction' are incompatible.
+    Type 'unknown' is not assignable to type 'InputTransactionData'.
+      Type 'unknown' is not assignable to type 'InputTransactionDataInner'.
+hooks/use-shelby-image-upload.ts(28,47): error TS2345: Argument of type '{ signer: { account: WalletAccount; signAndSubmitTransaction: (transaction: unknown) => Promise<unknown>; }; blobs: { blobName: string; blobData: Uint8Array<ArrayBufferLike>; }[]; expirationMicros: number; maxConcurrentUploads?: number | undefined; }' is not assignable to parameter of type 'UseUploadBlobsVariables'.
+  Types of property 'signer' are incompatible.
+    Type '{ account: WalletAccount; signAndSubmitTransaction: (transaction: unknown) => Promise<unknown>; }' is not assignable to type 'Signer'.
+      Type '{ account: WalletAccount; signAndSubmitTransaction: (transaction: unknown) => Promise<unknown>; }' is not assignable to type 'WalletAdapterSigner'.
+        Types of property 'account' are incompatible.
+          Type 'WalletAccount' is not assignable to type 'AccountAddressInput | { address: AccountAddressInput; } | null | undefined'.
+            Type 'WalletAccount' is not assignable to type '{ address: AccountAddressInput; }'.
+              Types of property 'address' are incompatible.
+                Type '{ toString(): string; }' is not assignable to type 'AccountAddressInput'.
+                  Type '{ toString(): string; }' is missing the following properties from type 'Uint8Array<ArrayBufferLike>': BYTES_PER_ELEMENT, buffer, byteLength, byteOffset, and 36 more.

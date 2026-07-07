@@ -1,0 +1,623 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("MONGODB_URI")
+}
+
+model User {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  // email is optional (primary auth is via walletAddress).
+  // @unique was removed because MongoDB unique indexes reject multiple documents with email: null,
+  // which was causing the P1012 / E11000 error during `prisma db push`.
+  email             String?
+  address           String?
+  handle            String?
+  walletAddress     String?   @unique
+  passwordHash      String?
+  username          String?   @unique
+  displayName       String?
+  bio               String?
+  avatarRef         String?
+  bannerRef         String?
+  avatarCid         String?
+  avatarUrl         String?
+  bannerCid         String?
+  bannerUrl         String?
+  twitterUrl        String?
+  instagramUrl      String?
+  behanceUrl        String?
+  dribbbleUrl       String?
+  artstationUrl     String?
+  youtubeUrl        String?
+  tiktokUrl         String?
+  farcasterUrl      String?
+  websiteUrl        String?
+  isCreator         Boolean   @default(false)
+  verified          Boolean   @default(false)
+  verificationTx    String?
+  verificationTxHash String?
+  verifiedAt        DateTime?
+  skills            String[]  @default([])
+  lastProfileEdit   DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  posts           Post[]
+  notifications   Notification[]
+  invoicesIssued  Invoice[]   @relation("InvoiceIssuer")
+  invoicesReceived Invoice[]  @relation("InvoiceRecipient")
+  invoicesPaid    Invoice[]   @relation("InvoicePayer")
+  creatorProfile  CreatorProfile?
+  burnLinks       BurnLink[]
+  files           File[]
+  accessGrants    AccessGrant[]
+  transactions    Transaction[]
+  subscriptions   SubscriberGrant[]
+  contentPurchases ContentPurchase[]
+  tipsGiven       Tip[]       @relation("TipFrom")
+  tipsReceived    Tip[]       @relation("TipTo")
+  conversations   Participant[]
+  messages        Message[]
+  reactions       Reaction[]
+  following       Follow[]    @relation("follower")
+  followers       Follow[]    @relation("following")
+  assets          Asset[]
+  vaults          Vault[]
+  streamLikes     StreamLike[]
+  streamComments  StreamComment[]
+  vaultMemberships VaultMember[]
+  products        Product[]
+  purchases       Purchase[]  @relation("PurchaseBuyer")
+  sales           Purchase[]  @relation("PurchaseSeller")
+  certificates    Certificate[] @relation("CertificateBuyer")
+  certificatesSold Certificate[] @relation("CertificateSeller")
+  workspacesOwned Workspace[] @relation("WorkspaceOwner")
+  workspaceMemberships WorkspaceMember[]
+  referralCode    ReferralCode?
+}
+
+model CreatorProfile {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String    @unique @db.ObjectId
+  user            User      @relation(fields: [userId], references: [id])
+  handle          String    @unique
+  subscriberCount Int       @default(0)
+  totalEarnings   Float     @default(0)
+  totalViews      Int       @default(0)
+  reputationScore Float     @default(0)
+  reputationLevel String    @default("Bronze")
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  tiers           SubscriptionTier[]
+  content         CreatorContent[]
+}
+
+model SubscriptionTier {
+  id               String    @id @default(auto()) @map("_id") @db.ObjectId
+  creatorProfileId String    @db.ObjectId
+  creator          CreatorProfile @relation(fields: [creatorProfileId], references: [id])
+  tierIndex        Int
+  name             String
+  description      String?
+  priceApt         Float
+  perks            String[]
+  isActive         Boolean   @default(true)
+  grants           SubscriberGrant[]
+}
+
+model SubscriberGrant {
+  id             String    @id @default(auto()) @map("_id") @db.ObjectId
+  subscriberId   String    @db.ObjectId
+  subscriber     User      @relation(fields: [subscriberId], references: [id])
+  tierId         String    @db.ObjectId
+  tier           SubscriptionTier @relation(fields: [tierId], references: [id])
+  creatorAddress String
+  status         String    @default("active")
+  renewsAt       DateTime
+  onChainTxHash  String?
+  createdAt      DateTime  @default(now())
+}
+
+model CreatorContent {
+  id               String    @id @default(auto()) @map("_id") @db.ObjectId
+  creatorProfileId String    @db.ObjectId
+  creator          CreatorProfile @relation(fields: [creatorProfileId], references: [id])
+  onChainContentId Int?
+  title            String
+  description      String?
+  contentType      String
+  category         String?
+  shelbyCid        String
+  thumbnailCid     String?
+  previewCid       String?
+  accessLevel      Int       @default(0)
+  priceApt         Float     @default(0)
+  isActive         Boolean   @default(true)
+  viewCount        Int       @default(0)
+  purchaseCount    Int       @default(0)
+  burnLinkId       String?   @db.ObjectId
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  purchases        ContentPurchase[]
+}
+
+model Post {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId       String   @db.ObjectId
+  user         User     @relation(fields: [userId], references: [id])
+  text         String?
+  mediaCid     String?
+  mediaType    String?
+  thumbnailCid String?
+  category     String?
+  viewCount    Int      @default(0)
+  likeCount    Int      @default(0)
+  isPublic     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Notification {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  user      User     @relation(fields: [userId], references: [id])
+  type      String
+  title     String
+  body      String
+  href      String?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model Invoice {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  invoiceNumber String   @unique
+  issuerId      String   @db.ObjectId
+  issuer        User     @relation("InvoiceIssuer", fields: [issuerId], references: [id])
+  recipientId   String?  @db.ObjectId
+  recipient     User?    @relation("InvoiceRecipient", fields: [recipientId], references: [id])
+  payerId       String?  @db.ObjectId
+  payer         User?    @relation("InvoicePayer", fields: [payerId], references: [id])
+  clientName    String
+  clientEmail   String?
+  description   String
+  amountApt     Float
+  currency      String   @default("APT")
+  status        String   @default("pending")
+  notes         String?
+  paymentToken  String?  @unique
+  txHash        String?
+  paidAt        DateTime?
+  pdfBlobId     String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model ContentPurchase {
+  id        String    @id @default(auto()) @map("_id") @db.ObjectId
+  contentId String    @db.ObjectId
+  content   CreatorContent @relation(fields: [contentId], references: [id])
+  buyerId   String    @db.ObjectId
+  buyer     User      @relation(fields: [buyerId], references: [id])
+  amountApt Float
+  feeApt    Float
+  netApt    Float
+  txHash    String    @unique
+  createdAt DateTime  @default(now())
+}
+
+model File {
+  id        String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String    @db.ObjectId
+  owner     User      @relation(fields: [userId], references: [id])
+  blobId    String
+  fileName  String
+  mimeType  String
+  fileSize  Int
+  dataBase64 String?
+  createdAt DateTime  @default(now())
+  burnLink  BurnLink?
+}
+
+model BurnLink {
+  id                  String    @id @default(auto()) @map("_id") @db.ObjectId
+  slug                String    @unique
+  userId              String    @db.ObjectId
+  owner               User      @relation(fields: [userId], references: [id])
+  fileId              String    @unique @db.ObjectId
+  file                File      @relation(fields: [fileId], references: [id])
+  title               String?
+  priceApt            Float     @default(0)
+  expiresAt           DateTime?
+  maxViews            Int?
+  burnAfterRead       Boolean   @default(false)
+  oneTime             Boolean   @default(false)
+  walletGated         Boolean   @default(false)
+  allowedWallets      String[]
+  passwordHash        String?
+  disableDownload     Boolean   @default(false)
+  viewOnly            Boolean   @default(false)
+  screenshotProtected Boolean   @default(false)
+  thumbnailRef        String?
+  watermarkWallet     Boolean   @default(false)
+  nftGated            Boolean   @default(false)
+  nftCollectionAddr   String?
+  tokenBalanceGate    Float?
+  isActive            Boolean   @default(true)
+  viewCount           Int       @default(0)
+  uploadTxHash        String?
+  storageTxHash       String?
+  onChainId           String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  accessGrants        AccessGrant[]
+  transactions        Transaction[]
+  messages            Message[]
+}
+
+model AccessGrant {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  burnLinkId      String    @db.ObjectId
+  burnLink        BurnLink  @relation(fields: [burnLinkId], references: [id])
+  userId          String    @db.ObjectId
+  user            User      @relation(fields: [userId], references: [id])
+  walletAddress   String
+  viewsUsed       Int       @default(0)
+  accessWindowEnd DateTime?
+  viewToken       String?
+  createdAt       DateTime  @default(now())
+}
+
+model Transaction {
+  id                 String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId             String    @db.ObjectId
+  user               User      @relation(fields: [userId], references: [id])
+  burnLinkId         String?   @db.ObjectId
+  burnLink           BurnLink? @relation(fields: [burnLinkId], references: [id])
+  type               String
+  direction          String
+  amountApt          Float
+  feeApt             Float     @default(0)
+  netApt             Float
+  counterpartyWallet String?
+  description        String
+  txHash             String    @unique
+  status             String    @default("confirmed")
+  createdAt          DateTime  @default(now())
+}
+
+model Tip {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  fromUserId String   @db.ObjectId
+  from       User     @relation("TipFrom", fields: [fromUserId], references: [id])
+  toUserId   String   @db.ObjectId
+  to         User     @relation("TipTo", fields: [toUserId], references: [id])
+  amountApt  Float
+  feeApt     Float
+  netApt     Float
+  message    String?
+  txHash     String   @unique
+  createdAt  DateTime @default(now())
+}
+
+model Follow {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  followerId  String   @db.ObjectId
+  follower    User     @relation("follower", fields: [followerId], references: [id])
+  followingId String   @db.ObjectId
+  following   User     @relation("following", fields: [followingId], references: [id])
+  createdAt   DateTime @default(now())
+
+  @@unique([followerId, followingId])
+}
+
+model Conversation {
+  id           String        @id @default(auto()) @map("_id") @db.ObjectId
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  participants Participant[]
+  messages     Message[]
+}
+
+model Participant {
+  id             String       @id @default(auto()) @map("_id") @db.ObjectId
+  conversationId String       @db.ObjectId
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  userId         String       @db.ObjectId
+  user           User         @relation(fields: [userId], references: [id])
+
+  @@unique([conversationId, userId])
+}
+
+model Message {
+  id             String       @id @default(auto()) @map("_id") @db.ObjectId
+  conversationId String       @db.ObjectId
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  senderId       String       @db.ObjectId
+  sender         User         @relation(fields: [senderId], references: [id])
+  type           String       @default("TEXT")
+  content        String?
+  burnLinkId     String?      @db.ObjectId
+  burnLink       BurnLink?    @relation(fields: [burnLinkId], references: [id])
+  createdAt      DateTime     @default(now())
+  reactions      Reaction[]
+}
+
+model Reaction {
+  id        String  @id @default(auto()) @map("_id") @db.ObjectId
+  messageId String  @db.ObjectId
+  message   Message @relation(fields: [messageId], references: [id])
+  userId    String  @db.ObjectId
+  user      User    @relation(fields: [userId], references: [id])
+  emoji     String
+
+  @@unique([messageId, userId, emoji])
+}
+
+model AnalyticsEvent {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  creatorId  String   @db.ObjectId
+  contentId  String?  @db.ObjectId
+  burnLinkId String?  @db.ObjectId
+  assetId    String?  @db.ObjectId
+  productId  String?  @db.ObjectId
+  vaultId    String?  @db.ObjectId
+  eventType  String
+  walletAddr String?
+  amountApt  Float?
+  createdAt  DateTime @default(now())
+}
+
+// ─── Forge V2: Asset commerce ───────────────────────────────────────────────
+
+model Asset {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId        String   @db.ObjectId
+  owner         User     @relation(fields: [userId], references: [id])
+  title         String
+  description   String?
+  thumbnailRef  String?
+  blobRef       String
+  fileName      String?
+  mimeType      String?
+  fileSize      Int?
+  category      String?
+  assetType     String   @default("FILE")
+  priceApt      Float    @default(0)
+  visibility    String   @default("public")
+  status        String   @default("published")
+  burnLinkId    String?  @db.ObjectId
+  viewCount     Int      @default(0)
+  purchaseCount Int      @default(0)
+  rating        Float?
+  tags          String[] @default([])
+  isListed      Boolean  @default(false)
+  isStream      Boolean  @default(false)
+  streamVisibility String @default("everyone")
+  streamPriceApt Float @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  metadata      AssetMetadata?
+  streamLikes   StreamLike[]
+  streamComments StreamComment[]
+  vaultAssets   VaultAsset[]
+  productItems  ProductItem[]
+  purchases     Purchase[]
+  certificates  Certificate[]
+}
+
+model AssetMetadata {
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  assetId           String   @unique @db.ObjectId
+  asset             Asset    @relation(fields: [assetId], references: [id])
+  summary           String?
+  keywords          String[] @default([])
+  chapters          String[] @default([])
+  transcript        String?
+  inventory         String?
+  languages         String[] @default([])
+  suggestedCategory String?
+  processingStatus  String   @default("pending")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model Vault {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String   @db.ObjectId
+  owner       User     @relation(fields: [userId], references: [id])
+  name        String
+  description String?
+  vaultType   String   @default("PRIVATE")
+  visibility  String   @default("private")
+  priceApt    Float?
+  isPublished Boolean  @default(false)
+  viewCount   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  members     VaultMember[]
+  assets      VaultAsset[]
+  products    Product[]
+  purchases   Purchase[]
+}
+
+model VaultMember {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  vaultId   String   @db.ObjectId
+  vault     Vault    @relation(fields: [vaultId], references: [id])
+  userId    String   @db.ObjectId
+  user      User     @relation(fields: [userId], references: [id])
+  role      String   @default("VIEWER")
+  createdAt DateTime @default(now())
+
+  @@unique([vaultId, userId])
+}
+
+model VaultAsset {
+  id       String @id @default(auto()) @map("_id") @db.ObjectId
+  vaultId  String @db.ObjectId
+  vault    Vault  @relation(fields: [vaultId], references: [id])
+  assetId  String @db.ObjectId
+  asset    Asset  @relation(fields: [assetId], references: [id])
+  sortOrder Int   @default(0)
+
+  @@unique([vaultId, assetId])
+}
+
+model Product {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId        String   @db.ObjectId
+  owner         User     @relation(fields: [userId], references: [id])
+  title         String
+  description   String?
+  productType   String   @default("BUNDLE")
+  priceApt      Float    @default(0)
+  thumbnailRef  String?
+  vaultId       String?  @db.ObjectId
+  vault         Vault?   @relation(fields: [vaultId], references: [id])
+  isActive      Boolean  @default(true)
+  purchaseCount Int      @default(0)
+  isListed      Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  items         ProductItem[]
+  purchases     Purchase[]
+  certificates  Certificate[]
+}
+
+model ProductItem {
+  id        String  @id @default(auto()) @map("_id") @db.ObjectId
+  productId String  @db.ObjectId
+  product   Product @relation(fields: [productId], references: [id])
+  assetId   String? @db.ObjectId
+  asset     Asset?  @relation(fields: [assetId], references: [id])
+  vaultId   String? @db.ObjectId
+  label     String?
+  sortOrder Int     @default(0)
+}
+
+model Purchase {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  buyerId      String   @db.ObjectId
+  buyer        User     @relation("PurchaseBuyer", fields: [buyerId], references: [id])
+  sellerId     String   @db.ObjectId
+  seller       User     @relation("PurchaseSeller", fields: [sellerId], references: [id])
+  assetId      String?  @db.ObjectId
+  asset        Asset?   @relation(fields: [assetId], references: [id])
+  productId    String?  @db.ObjectId
+  product      Product? @relation(fields: [productId], references: [id])
+  vaultId      String?  @db.ObjectId
+  vault        Vault?   @relation(fields: [vaultId], references: [id])
+  burnLinkId   String?  @db.ObjectId
+  amountApt    Float
+  feeApt       Float    @default(0)
+  netApt       Float
+  txHash       String   @unique
+  purchaseType String
+  createdAt    DateTime @default(now())
+
+  certificate  Certificate?
+}
+
+model Certificate {
+  id               String   @id @default(auto()) @map("_id") @db.ObjectId
+  certificateId    String   @unique
+  purchaseId       String?  @unique @db.ObjectId
+  purchase         Purchase? @relation(fields: [purchaseId], references: [id])
+  buyerId          String   @db.ObjectId
+  buyer            User     @relation("CertificateBuyer", fields: [buyerId], references: [id])
+  sellerId         String   @db.ObjectId
+  seller           User     @relation("CertificateSeller", fields: [sellerId], references: [id])
+  assetId          String?  @db.ObjectId
+  asset            Asset?   @relation(fields: [assetId], references: [id])
+  productId        String?  @db.ObjectId
+  product          Product? @relation(fields: [productId], references: [id])
+  title            String
+  txHash           String
+  network          String   @default("shelbynet")
+  verificationSlug String   @unique
+  issuedAt         DateTime @default(now())
+}
+
+model Workspace {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  description String?
+  ownerId     String   @db.ObjectId
+  owner       User     @relation("WorkspaceOwner", fields: [ownerId], references: [id])
+  clientId    String?  @db.ObjectId
+  status      String   @default("active")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  members     WorkspaceMember[]
+}
+
+model WorkspaceMember {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  workspaceId String    @db.ObjectId
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+  userId      String    @db.ObjectId
+  user        User      @relation(fields: [userId], references: [id])
+  role        String    @default("COLLABORATOR")
+  createdAt   DateTime  @default(now())
+
+  @@unique([workspaceId, userId])
+}
+
+model ReferralCode {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String   @unique @db.ObjectId
+  user        User     @relation(fields: [userId], references: [id])
+  code        String   @unique
+  visits      Int      @default(0)
+  signups     Int      @default(0)
+  purchases   Int      @default(0)
+  revenueApt  Float    @default(0)
+  createdAt   DateTime @default(now())
+}
+
+model ReferralEvent {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  code           String
+  eventType      String
+  amountApt      Float?
+  referredUserId String?  @db.ObjectId
+  createdAt      DateTime @default(now())
+}
+
+model StreamLike {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  assetId   String   @db.ObjectId
+  asset     Asset    @relation(fields: [assetId], references: [id])
+  userId    String   @db.ObjectId
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@unique([assetId, userId])
+}
+
+model StreamComment {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  assetId   String   @db.ObjectId
+  asset     Asset    @relation(fields: [assetId], references: [id])
+  userId    String   @db.ObjectId
+  user      User     @relation(fields: [userId], references: [id])
+  content   String
+  createdAt DateTime @default(now())
+}
+
+model WaitlistEntry {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  email     String   @unique
+  createdAt DateTime @default(now())
+}

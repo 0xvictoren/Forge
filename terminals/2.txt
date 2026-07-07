@@ -1,0 +1,135 @@
+---
+pid: 18960
+cwd: "C:\Users\victoren\Desktop\Projects\Forge"
+command: "cd \"C:\\Users\\victoren\\Desktop\\Projects\\Forge\" && npx next build 2>&1"
+started_at: 2026-07-03T16:13:45.214Z
+running_for_ms: 14590017 
+---
+   ▲ Next.js 15.5.18
+   - Environments: .env
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully in 25.4s
+   Linting and checking validity of types ...
+   Collecting page data ...
+   Generating static pages (0/71) ...
+   Generating static pages (17/71) 
+   Generating static pages (35/71) 
+   Generating static pages (53/71) 
+ ✓ Generating static pages (71/71)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                                 Size  First Load JS  Revalidate  Expire
+┌ ○ /                                    3.09 kB         930 kB          1d      1y
+├ ○ /_not-found                             1 kB         103 kB
+├ ƒ /[handle]                            11.5 kB         948 kB
+├ ƒ /api/analytics                         303 B         103 kB
+├ ƒ /api/analytics/dashboard               303 B         103 kB
+├ ƒ /api/assets                            303 B         103 kB
+├ ƒ /api/assets/[id]                       303 B         103 kB
+├ ƒ /api/assets/[id]/purchase              303 B         103 kB
+├ ƒ /api/auth/logout                       303 B         103 kB
+├ ƒ /api/auth/me                           303 B         103 kB
+├ ƒ /api/auth/session                      303 B         103 kB
+├ ƒ /api/burnlinks                         303 B         103 kB
+├ ƒ /api/burnlinks/[slug]                  303 B         103 kB
+├ ƒ /api/burnlinks/[slug]/access           303 B         103 kB
+├ ƒ /api/burnlinks/[slug]/unlock           303 B         103 kB
+├ ƒ /api/certificates/[slug]               303 B         103 kB
+├ ƒ /api/certificates/[slug]/pdf           303 B         103 kB
+├ ƒ /api/conversations                     303 B         103 kB
+├ ƒ /api/conversations/[id]/messages       303 B         103 kB
+├ ƒ /api/creators/[handle]                 303 B         103 kB
+├ ƒ /api/creators/explore                  303 B         103 kB
+├ ƒ /api/creators/register                 303 B         103 kB
+├ ƒ /api/cron/expire-burnlinks             303 B         103 kB
+├ ƒ /api/dashboard/creator                 303 B         103 kB
+├ ƒ /api/explore/assets                    303 B         103 kB
+├ ƒ /api/feed                              303 B         103 kB
+├ ƒ /api/follow                            303 B         103 kB
+├ ƒ /api/home/dashboard                    303 B         103 kB
+├ ƒ /api/invoices                          303 B         103 kB
+├ ƒ /api/invoices/[id]/pdf                 303 B         103 kB
+├ ƒ /api/invoices/[id]/send                303 B         103 kB
+├ ƒ /api/invoices/pay/[token]              303 B         103 kB
+├ ƒ /api/library                           303 B         103 kB
+├ ƒ /api/lobby/creators                    303 B         103 kB
+├ ƒ /api/media/blob/[cid]                  303 B         103 kB
+├ ƒ /api/media/shelby                      303 B         103 kB
+├ ƒ /api/media/upload                      303 B         103 kB
+├ ƒ /api/notifications                     303 B         103 kB
+├ ƒ /api/onboarding                        303 B         103 kB
+├ ƒ /api/posts                             303 B         103 kB
+├ ƒ /api/posts/[id]/view                   303 B         103 kB
+├ ƒ /api/products                          303 B         103 kB
+├ ƒ /api/products/[id]/purchase            303 B         103 kB
+├ ƒ /api/profile/[handle]                  303 B         103 kB
+├ ƒ /api/referrals                         303 B         103 kB
+├ ƒ /api/search                            303 B         103 kB
+├ ƒ /api/stream                            303 B         103 kB
+├ ƒ /api/stream/[id]/comments              303 B         103 kB
+├ ƒ /api/stream/[id]/like                  303 B         103 kB
+├ ƒ /api/stream/[id]/unlock                303 B         103 kB
+├ ƒ /api/stream/[id]/view                  303 B         103 kB
+├ ƒ /api/stream/multipart/complete         303 B         103 kB
+├ ƒ /api/stream/multipart/init             303 B         103 kB
+├ ƒ /api/stream/multipart/part             303 B         103 kB
+├ ƒ /api/stream/presign                    303 B         103 kB
+├ ƒ /api/subscriptions/subscribe           303 B         103 kB
+├ ƒ /api/tips                              303 B         103 kB
+├ ƒ /api/upload/stream                     303 B         103 kB
+├ ƒ /api/users/me                          303 B         103 kB
+├ ƒ /api/users/me/skills                   303 B         103 kB
+├ ƒ /api/users/search                      303 B         103 kB
+├ ƒ /api/vaults                            303 B         103 kB
+├ ƒ /api/vaults/[id]                       303 B         103 kB
+├ ƒ /api/vaults/[id]/assets                303 B         103 kB
+├ ƒ /api/verify                            303 B         103 kB
+├ ƒ /api/view/[slug]                       303 B         103 kB
+├ ƒ /api/waitlist                          303 B         103 kB
+├ ƒ /api/wallet/apt-price                  303 B         103 kB
+├ ƒ /api/wallet/summary                    303 B         103 kB
+├ ƒ /api/wallet/transactions               303 B         103 kB
+├ ƒ /api/workspaces                        303 B         103 kB
+├ ƒ /api/workspaces/[id]                   303 B         103 kB
+├ ƒ /assets/[id]                         2.65 kB         932 kB
+├ ƒ /b/[slug]                            4.44 kB         931 kB
+├ ƒ /bundles                             3.47 kB         119 kB
+├ ƒ /cert/[slug]                         2.45 kB         929 kB
+├ ƒ /chat                                5.72 kB         150 kB
+├ ƒ /chat/[id]                           4.78 kB         278 kB
+├ ƒ /dashboard                           3.56 kB         127 kB
+├ ○ /explore                             6.64 kB         936 kB
+├ ○ /faq                                 2.44 kB         929 kB
+├ ○ /hire                                5.48 kB         932 kB
+├ ƒ /home                                4.71 kB         908 kB
+├ ○ /how-it-works                        2.45 kB         929 kB
+├ ○ /icon.png                                0 B            0 B
+├ ƒ /library                             2.81 kB         117 kB
+├ ○ /lobby                                 303 B         103 kB
+├ ƒ /onboarding                           2.8 kB         120 kB
+├ ƒ /pay/invoice/[token]                  1.6 kB         921 kB
+├ ƒ /products/[id]                       4.37 kB         931 kB
+├ ƒ /profile                               822 B         107 kB
+├ ƒ /stream                               529 kB        1.29 MB
+├ ƒ /upload                              11.2 kB         908 kB
+├ ƒ /vaults                              2.41 kB         117 kB
+├ ƒ /vaults/[id]                           913 B         116 kB
+├ ƒ /view/[slug]                         4.98 kB         746 kB
+├ ƒ /wallet                                165 B         921 kB
+├ ƒ /wallet/insights                     1.14 kB         112 kB
+├ ƒ /wallet/invoices                      2.1 kB         920 kB
+├ ƒ /wallet/payouts                        165 B         921 kB
+├ ƒ /wallet/settings                       303 B         103 kB
+├ ƒ /workspaces                          1.95 kB         117 kB
+└ ƒ /workspaces/[id]                       166 B         106 kB
++ First Load JS shared by all             102 kB
+  ├ chunks/1255-eae4096fb21f1304.js        46 kB
+  ├ chunks/4bd1b696-100b9d70ed4e49c1.js  54.2 kB
+  └ other shared chunks (total)          2.13 kB
+
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
