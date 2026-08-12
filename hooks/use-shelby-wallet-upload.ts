@@ -11,9 +11,12 @@ import {
   type ShelbyUploadResult,
 } from "@/lib/shelby-wallet-upload";
 import { formatShelbyUploadError } from "@/lib/shelby-upload-errors";
+import { useContentEncryption } from "@/hooks/use-content-encryption";
 
 export function useShelbyWalletUpload() {
   const { account, connected, signAndSubmitTransaction } = useWallet();
+  const { encryptForUpload, isBusy: isEncrypting, canEncrypt } =
+    useContentEncryption();
   const uploadBlobs = useUploadBlobs({
     onError: (err) => toast.error(formatShelbyUploadError(err.message)),
   });
@@ -37,9 +40,13 @@ export function useShelbyWalletUpload() {
     async (
       file: File,
       kind: ShelbyUploadKind,
-      options?: { expirationHours?: number }
+      options?: { expirationHours?: number; encrypt?: boolean }
     ): Promise<ShelbyUploadResult> => {
       const wallet = requireWallet();
+      const shouldEncrypt = !!options?.encrypt;
+      if (shouldEncrypt && !canEncrypt) {
+        throw new Error("Wallet cannot sign messages required for encryption");
+      }
       return uploadFileToShelbyWithWallet(
         file,
         kind,
@@ -50,35 +57,45 @@ export function useShelbyWalletUpload() {
           expirationHours:
             options?.expirationHours ??
             (kind === "avatar" || kind === "banner" ? 365 * 24 : undefined),
+          encryptFile: shouldEncrypt ? encryptForUpload : undefined,
         }
       );
     },
-    [requireWallet]
+    [requireWallet, encryptForUpload, canEncrypt]
   );
 
   const uploadFiles = useCallback(
     async (
       files: File[],
       kind: ShelbyUploadKind,
-      options?: { expirationHours?: number }
+      options?: { expirationHours?: number; encrypt?: boolean }
     ): Promise<ShelbyUploadResult[]> => {
       const wallet = requireWallet();
+      const shouldEncrypt = !!options?.encrypt;
+      if (shouldEncrypt && !canEncrypt) {
+        throw new Error("Wallet cannot sign messages required for encryption");
+      }
       return uploadFilesToShelbyWithWallet(
         files,
         kind,
         wallet.account,
         wallet.signAndSubmitTransaction,
         wallet.mutate,
-        options
+        {
+          expirationHours: options?.expirationHours,
+          encryptFile: shouldEncrypt ? encryptForUpload : undefined,
+        }
       );
     },
-    [requireWallet]
+    [requireWallet, encryptForUpload, canEncrypt]
   );
 
   return {
     uploadFile,
     uploadFiles,
     isWalletReady: connected && !!account && !!signAndSubmitTransaction,
+    isEncrypting,
+    canEncrypt,
   };
 }
 

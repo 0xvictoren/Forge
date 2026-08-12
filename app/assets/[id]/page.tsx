@@ -9,6 +9,8 @@ import { getSessionUser } from "@/lib/auth";
 import { canUserAccessAsset } from "@/lib/asset-access";
 import { getShelbyPublicUrl } from "@/lib/shelby-public";
 import { t } from "@/lib/i18n/translations";
+import { EncryptedDownloadButton } from "@/components/media/encrypted-download-button";
+import { EncryptedBadge } from "@/components/ui/encrypted-badge";
 
 export default async function AssetPage({
   params,
@@ -49,9 +51,12 @@ export default async function AssetPage({
   });
 
   const canDownload = access.canAccess;
+  // Never use encrypted blob as a public image preview (ciphertext is not viewable)
   const previewUrl = asset.thumbnailRef
     ? getShelbyPublicUrl(asset.thumbnailRef)
-    : asset.blobRef && (asset.assetType === "IMAGE" || asset.mimeType?.startsWith("image"))
+    : !asset.isEncrypted &&
+        asset.blobRef &&
+        (asset.assetType === "IMAGE" || asset.mimeType?.startsWith("image"))
       ? getShelbyPublicUrl(asset.blobRef)
       : null;
 
@@ -89,6 +94,11 @@ export default async function AssetPage({
                 {asset.priceApt > 0 && !canDownload && (
                   <div className="absolute top-4 right-4 rounded-full bg-black/75 px-4 py-1.5 text-xs font-semibold text-white backdrop-blur-md">
                     PAID ASSET
+                  </div>
+                )}
+                {asset.isEncrypted && (
+                  <div className="absolute top-4 left-4">
+                    <EncryptedBadge size="sm" />
                   </div>
                 )}
               </div>
@@ -188,13 +198,17 @@ export default async function AssetPage({
               )}
 
               {canDownload && (
-                <a
-                  href={downloadUrl!}
-                  download
-                  className="btn-primary flex w-full items-center justify-center gap-2 py-4 text-base"
+                <EncryptedDownloadButton
+                  downloadUrl={downloadUrl}
+                  fileName={asset.fileName || asset.title}
+                  isEncrypted={!!asset.isEncrypted}
+                  keyPackageUrl={`/api/assets/${asset.id}/decrypt-package`}
+                  asOwner={isOwner}
                 >
-                  {t("en", "download_file") || "Download file"}
-                </a>
+                  {asset.isEncrypted
+                    ? "Decrypt & download"
+                    : t("en", "download_file") || "Download file"}
+                </EncryptedDownloadButton>
               )}
 
               {canDownload && asset.priceApt === 0 && !isOwner && (

@@ -233,6 +233,15 @@ model File {
   mimeType  String
   fileSize  Int
   dataBase64 String?
+  /// Client-side AES-256-GCM: Shelby holds ciphertext only
+  isEncrypted        Boolean  @default(false)
+  encryptionVersion  Int?
+  /// Content key wrapped with owner wallet-derived key (base64 IV||ct)
+  wrappedKeyOwner    String?
+  /// Content key wrapped with share secret (base64 IV||ct)
+  wrappedKeyShare    String?
+  /// Share secret (base64) — release only after ownership/payment/unlock auth
+  encryptionShareKey String?
   createdAt DateTime  @default(now())
   burnLink  BurnLink?
 }
@@ -414,6 +423,13 @@ model Asset {
   isStream      Boolean  @default(false)
   streamVisibility String @default("everyone")
   streamPriceApt Float @default(0)
+  /// Client-side AES-256-GCM: Shelby holds ciphertext only
+  isEncrypted        Boolean  @default(false)
+  encryptionVersion  Int?
+  wrappedKeyOwner    String?
+  wrappedKeyShare    String?
+  /// Share secret — never return on public/unauthenticated endpoints
+  encryptionShareKey String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 

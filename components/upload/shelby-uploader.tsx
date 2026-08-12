@@ -11,6 +11,10 @@ import {
 import { encodeBlobRef } from "@/lib/shelby-public";
 import { formatShelbyUploadError } from "@/lib/shelby-upload-errors";
 import { PLATFORM_ADDRESS } from "@/lib/constants";
+import { useContentEncryption } from "@/hooks/use-content-encryption";
+import type { EncryptionMaterial } from "@/lib/encryption";
+import { EncryptedBadge } from "@/components/ui/encrypted-badge";
+import { Lock, Loader2 } from "lucide-react";
 
 const BURNLINK_STORAGE_FEE_APT =
   Number(process.env.NEXT_PUBLIC_BURNLINK_STORAGE_FEE_APT) || 0.5;
@@ -29,17 +33,31 @@ export type ShelbyUploadResult = {
   expirationAt: Date;
 };
 
+export type FileUploadMeta = {
+  name: string;
+  size: number;
+  mime: string;
+};
+
 interface ShelbyUploaderProps {
   mode?: "post" | "burnlink" | "media";
   onSuccess?: (
     blobRefs: string[],
     txData: ShelbyTxData,
-    fileMetas?: Array<{ name: string; size: number; mime: string }>
+    fileMetas?: FileUploadMeta[],
+    encryptionMaterials?: Array<EncryptionMaterial | null>
   ) => void;
   maxFiles?: number;
   acceptedTypes?: string;
   storageFeeApt?: number;
   expirationHours?: number;
+  /**
+   * Encrypt with AES-256-GCM before upload (default: true for burnlink, false for media).
+   * When true, only ciphertext is sent to Shelby.
+   */
+  encrypt?: boolean;
+  /** Allow user to toggle encryption (shows checkbox). */
+  showEncryptToggle?: boolean;
 }
 
 function sanitizeName(name: string): string {
@@ -53,12 +71,25 @@ export default function ShelbyUploader({
   acceptedTypes = "image/*,video/*,audio/*,.pdf,.zip",
   storageFeeApt = BURNLINK_STORAGE_FEE_APT,
   expirationHours = 168,
+  encrypt: encryptProp,
+  showEncryptToggle = mode === "media",
 }: ShelbyUploaderProps) {
   const { account, connected, signAndSubmitTransaction } = useWallet();
   const { transfer } = useAptTransfer();
+  const {
+    encryptMany,
+    isBusy: isEncrypting,
+    canEncrypt,
+  } = useContentEncryption();
+
+  const defaultEncrypt = encryptProp ?? mode === "burnlink";
+  const [encryptEnabled, setEncryptEnabled] = useState(defaultEncrypt);
   const [files, setFiles] = useState<File[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [hours, setHours] = useState(expirationHours);
+  const [phase, setPhase] = useState<
+    "idle" | "fee" | "encrypting" | "uploading"
+  >("idle");
 
   const uploadBlobs = useUploadBlobs({
     onError: (err) => toast.error(formatShelbyUploadError(err.message)),
@@ -95,7 +126,14 @@ export default function ShelbyUploader({
       return;
     }
 
+    const doEncrypt = encryptEnabled;
+    if (doEncrypt && !canEncrypt) {
+      toast.error("Your wallet must support signMessage for client-side encryption");
+      return;
+    }
+
     setIsUploading(true);
+    setPhase("fee");
 
     try {
       let aptosTxHash: string | undefined;
@@ -109,11 +147,27 @@ export default function ShelbyUploader({
       const ownerAddress = account.address.toString();
       const expirationMicros = Date.now() * 1000 + hours * 3600 * 1_000_000;
 
+      let filesToUpload = files;
+      let encryptionMaterials: Array<EncryptionMaterial | null> = files.map(
+        () => null
+      );
+
+      if (doEncrypt) {
+        setPhase("encrypting");
+        toast.message("Sign once to derive your encryption key…");
+        const encrypted = await encryptMany(files);
+        filesToUpload = encrypted.map((e) => e.encryptedFile);
+        encryptionMaterials = encrypted.map((e) => e.material);
+      }
+
+      setPhase("uploading");
+
       const blobs = await Promise.all(
-        files.map(async (file) => {
+        filesToUpload.map(async (file, i) => {
           const buffer = await file.arrayBuffer();
+          const baseName = sanitizeName(files[i]?.name || file.name);
           return {
-            blobName: `forge/${mode === "burnlink" ? "burnlinks" : "media"}/${Date.now()}-${sanitizeName(file.name)}`,
+            blobName: `forge/${mode === "burnlink" ? "burnlinks" : "media"}/${Date.now()}-${baseName}${doEncrypt ? ".enc" : ""}`,
             blobData: new Uint8Array(buffer),
           };
         })
@@ -156,9 +210,21 @@ export default function ShelbyUploader({
         expirationMicros,
       };
 
-      const metas = files.map((f) => ({ name: f.name, size: f.size, mime: f.type }));
-      toast.success(`${files.length} file(s) uploaded to Shelby`);
-      onSuccess?.(blobRefs, txData, metas);
+      const metas: FileUploadMeta[] = files.map((f, i) => {
+        const mat = encryptionMaterials[i];
+        return {
+          name: f.name,
+          size: mat?.plaintextSize ?? f.size,
+          mime: mat?.mimeType ?? (f.type || "application/octet-stream"),
+        };
+      });
+
+      toast.success(
+        doEncrypt
+          ? `${files.length} file(s) encrypted & uploaded to Shelby`
+          : `${files.length} file(s) uploaded to Shelby`
+      );
+      onSuccess?.(blobRefs, txData, metas, encryptionMaterials);
       setFiles([]);
     } catch (error: unknown) {
       console.error("Shelby upload error:", error);
@@ -167,10 +233,20 @@ export default function ShelbyUploader({
       toast.error(message);
     } finally {
       setIsUploading(false);
+      setPhase("idle");
     }
   };
 
   const inputId = `shelby-upload-${mode}`;
+  const busy = isUploading || isEncrypting;
+
+  const statusLabel = (() => {
+    if (phase === "fee") return "Paying storage fee…";
+    if (phase === "encrypting") return "Encrypting (AES-256-GCM)…";
+    if (phase === "uploading") return "Uploading ciphertext to Shelby…";
+    if (mode === "burnlink") return `Pay ${storageFeeApt} APT & Upload`;
+    return encryptEnabled ? "Encrypt & upload to Shelby" : "Upload to Shelby";
+  })();
 
   return (
     <div className="rounded-3xl border-2 border-dashed border-[var(--border-default)] p-8 text-center transition-colors hover:border-[var(--brand)]">
@@ -193,7 +269,34 @@ export default function ShelbyUploader({
             ? `Pay ${storageFeeApt} APT storage fee · Stored on Shelby`
             : "Stored on Shelby"}
         </p>
+        {encryptEnabled && (
+          <div className="mt-3 flex justify-center">
+            <EncryptedBadge label="Client-side AES-256-GCM" />
+          </div>
+        )}
       </label>
+
+      {(showEncryptToggle || encryptEnabled) && (
+        <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-2xl border border-[var(--border-dim)] bg-[var(--bg-subtle)] p-3 text-left text-sm">
+          <input
+            type="checkbox"
+            className="mt-1 rounded"
+            checked={encryptEnabled}
+            disabled={!showEncryptToggle && encryptProp === true}
+            onChange={(e) => setEncryptEnabled(e.target.checked)}
+          />
+          <span>
+            <span className="flex items-center gap-1.5 font-medium">
+              <Lock className="h-3.5 w-3.5" />
+              Encrypt before upload
+            </span>
+            <span className="mt-0.5 block text-xs text-[var(--text-muted)]">
+              Generates a per-file key, encrypts in your browser, wraps the key with
+              your wallet signature. Only ciphertext is stored on Shelby.
+            </span>
+          </span>
+        </label>
+      )}
 
       {mode === "burnlink" && (
         <label className="mt-4 block text-left text-sm">
@@ -223,6 +326,7 @@ export default function ShelbyUploader({
                 <span className="truncate">{file.name}</span>
                 <span className="shrink-0 text-xs text-[var(--text-muted)]">
                   {(file.size / 1024 / 1024).toFixed(2)} MB
+                  {encryptEnabled ? " · will encrypt" : ""}
                 </span>
               </li>
             ))}
@@ -231,14 +335,11 @@ export default function ShelbyUploader({
           <button
             type="button"
             onClick={handleUpload}
-            disabled={isUploading || !connected}
-            className="w-full rounded-2xl bg-[var(--text-primary)] py-4 text-lg font-semibold text-[var(--text-inverse)] transition hover:opacity-90 disabled:opacity-50"
+            disabled={busy || !connected}
+            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[var(--text-primary)] py-4 text-lg font-semibold text-[var(--text-inverse)] transition hover:opacity-90 disabled:opacity-50"
           >
-            {isUploading
-              ? "Uploading to Shelby…"
-              : mode === "burnlink"
-                ? `Pay ${storageFeeApt} APT & Upload`
-                : "Upload to Shelby"}
+            {busy && <Loader2 className="h-5 w-5 animate-spin" />}
+            {statusLabel}
           </button>
         </div>
       )}

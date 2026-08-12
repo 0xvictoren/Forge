@@ -6,6 +6,9 @@ import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { ConnectWallet } from "@/components/wallet/connect-wallet";
 import { Download, Clock, Eye } from "lucide-react";
 import { AccountAddress } from "@aptos-labs/ts-sdk";
+import type { AuthorizedKeyPackage } from "@/lib/encryption";
+import { EncryptedMediaViewer } from "@/components/media/encrypted-media-viewer";
+import { EncryptedBadge } from "@/components/ui/encrypted-badge";
 
 type BurnlinkAccess = {
   title?: string;
@@ -18,6 +21,9 @@ type BurnlinkAccess = {
   screenshotProtected?: boolean;
   disableDownload?: boolean;
   slug?: string;
+  isEncrypted?: boolean;
+  asOwner?: boolean;
+  encryption?: AuthorizedKeyPackage | { isEncrypted: false };
   error?: string;
 };
 
@@ -155,6 +161,12 @@ export default function BurnLinkViewer() {
     ? new Date(burnlink.expiresAt).toLocaleString()
     : "No expiry";
 
+  const isEncrypted =
+    !!burnlink.isEncrypted &&
+    burnlink.encryption &&
+    "isEncrypted" in burnlink.encryption &&
+    burnlink.encryption.isEncrypted;
+
   return (
     <div className="relative min-h-screen bg-[#d4d4d4] p-6">
       {blurred && (
@@ -169,9 +181,16 @@ export default function BurnLinkViewer() {
             <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-orange-100 text-xl">
               📄
             </div>
-            <div>
-              <h1 className="text-xl font-semibold">{burnlink.title || "BurnLink file"}</h1>
-              <p className="text-sm text-gray-500">Protected file on Shelby</p>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-xl font-semibold">{burnlink.title || "BurnLink file"}</h1>
+                {isEncrypted && <EncryptedBadge size="sm" />}
+              </div>
+              <p className="text-sm text-gray-500">
+                {isEncrypted
+                  ? "Encrypted on Shelby · decrypts in your browser"
+                  : "Protected file on Shelby"}
+              </p>
             </div>
           </div>
         </div>
@@ -195,7 +214,17 @@ export default function BurnLinkViewer() {
         </div>
 
         <div className="p-8">
-          {mediaUrl ? (
+          {isEncrypted && mediaUrl && burnlink.encryption && burnlink.encryption.isEncrypted ? (
+            <EncryptedMediaViewer
+              streamUrl={mediaUrl}
+              keyPackage={burnlink.encryption}
+              fileName={downloadFileName}
+              mimeType={burnlink.mimeType}
+              disableDownload={burnlink.disableDownload}
+              asOwner={burnlink.asOwner}
+              title={burnlink.title}
+            />
+          ) : mediaUrl ? (
             <div className="flex aspect-video items-center justify-center overflow-hidden rounded-2xl bg-black">
               {burnlink.mimeType?.startsWith("image") ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -227,7 +256,7 @@ export default function BurnLinkViewer() {
           )}
         </div>
 
-        {!burnlink.disableDownload && mediaUrl && (
+        {!isEncrypted && !burnlink.disableDownload && mediaUrl && (
           <div className="border-t bg-gray-50 p-6">
             <a
               href={downloadUrl}

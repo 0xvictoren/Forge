@@ -31,6 +31,11 @@ export async function createAssetFromBurnLink(burnLinkId: string) {
       isListed: !burnLink.walletGated,
       burnLinkId: burnLink.id,
       tags: burnLink.walletGated ? ["whitelist", "burnlink"] : ["burnlink"],
+      isEncrypted: burnLink.file.isEncrypted ?? false,
+      encryptionVersion: burnLink.file.encryptionVersion ?? undefined,
+      wrappedKeyOwner: burnLink.file.wrappedKeyOwner ?? undefined,
+      wrappedKeyShare: burnLink.file.wrappedKeyShare ?? undefined,
+      encryptionShareKey: burnLink.file.encryptionShareKey ?? undefined,
     },
   });
 
@@ -56,6 +61,11 @@ export async function createAsset(input: {
   isStream?: boolean;
   streamVisibility?: string;
   streamPriceApt?: number;
+  isEncrypted?: boolean;
+  encryptionVersion?: number | null;
+  wrappedKeyOwner?: string | null;
+  wrappedKeyShare?: string | null;
+  encryptionShareKey?: string | null;
 }) {
   const asset = await prisma.asset.create({
     data: {
@@ -76,6 +86,11 @@ export async function createAsset(input: {
       isStream: input.isStream ?? false,
       streamVisibility: input.streamVisibility ?? "everyone",
       streamPriceApt: input.streamPriceApt ?? 0,
+      isEncrypted: input.isEncrypted ?? false,
+      encryptionVersion: input.encryptionVersion ?? undefined,
+      wrappedKeyOwner: input.wrappedKeyOwner ?? undefined,
+      wrappedKeyShare: input.wrappedKeyShare ?? undefined,
+      encryptionShareKey: input.encryptionShareKey ?? undefined,
       // Note: burnLinkId is intentionally omitted here.
       // It is only set via createAssetFromBurnLink (which has its own existence check).
       // The @unique was removed from the schema because it prevented multiple

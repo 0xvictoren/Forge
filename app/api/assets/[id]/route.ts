@@ -39,7 +39,15 @@ export async function GET(
     data: { viewCount: { increment: 1 } },
   });
 
-  return NextResponse.json({ asset });
+  // Strip key material — use /decrypt-package after access check
+  const {
+    encryptionShareKey: _s,
+    wrappedKeyOwner: _o,
+    wrappedKeyShare: _w,
+    ...safeAsset
+  } = asset;
+
+  return NextResponse.json({ asset: safeAsset });
 }
 
 export async function PATCH(

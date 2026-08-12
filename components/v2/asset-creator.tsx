@@ -15,6 +15,8 @@ import { CopyLinkButton } from "@/components/ui/copy-link-button";
 import { CloudImport } from "@/components/upload/cloud-import";
 import { useShelbyWalletUpload } from "@/hooks/use-shelby-wallet-upload";
 import { formatShelbyUploadError } from "@/lib/shelby-upload-errors";
+import type { EncryptionMaterial } from "@/lib/encryption";
+import { EncryptedBadge } from "@/components/ui/encrypted-badge";
 
 type FileMeta = { name: string; size: number; mime: string };
 
@@ -29,6 +31,9 @@ export default function AssetCreator() {
   const [blobRefs, setBlobRefs] = useState<string[]>([]);
   const [txData, setTxData] = useState<ShelbyTxData | null>(null);
   const [fileMetas, setFileMetas] = useState<FileMeta[]>([]);
+  const [encryptionMaterials, setEncryptionMaterials] = useState<
+    Array<EncryptionMaterial | null>
+  >([]);
 
 
   const [title, setTitle] = useState("");
@@ -87,12 +92,13 @@ export default function AssetCreator() {
   const handleUploadSuccess = (
     refs: string[],
     data: ShelbyTxData,
-    metas?: FileMeta[]
+    metas?: FileMeta[],
+    encMaterials?: Array<EncryptionMaterial | null>
   ) => {
     setBlobRefs(refs);
     setTxData(data);
     if (metas?.length) setFileMetas(metas);
-
+    setEncryptionMaterials(encMaterials ?? refs.map(() => null));
   };
 
   const handleThumbUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -143,6 +149,7 @@ export default function AssetCreator() {
       for (let i = 0; i < blobRefs.length; i++) {
         const ref = blobRefs[i];
         const meta = fileMetas[i] || { name: `asset-${i}`, size: 0, mime: "application/octet-stream" };
+        const enc = encryptionMaterials[i] || null;
         const res = await fetch("/api/assets", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -160,6 +167,7 @@ export default function AssetCreator() {
             tags,
             thumbnailRef: thumbnailRef || undefined,
             isListed: shouldList && !makingBundle,
+            encryption: enc || undefined,
           }),
         });
         const data = await res.json();
@@ -224,6 +232,7 @@ export default function AssetCreator() {
   const resetForm = () => {
     setBlobRefs([]);
     setFileMetas([]);
+    setEncryptionMaterials([]);
 
     setThumbnailRef(null);
     setTxData(null);
@@ -328,13 +337,14 @@ export default function AssetCreator() {
                 mode="media"
                 storageFeeApt={0}
                 maxFiles={10}
+                encrypt
+                showEncryptToggle
                 acceptedTypes="image/*,video/*,audio/*,.pdf,.zip,.txt,.md,.js,.ts,.tsx,.json,.csv"
-                onSuccess={(refs, tx, metas) => {
-                  handleUploadSuccess(refs, tx, metas);
-                }}
+                onSuccess={handleUploadSuccess}
               />
               <p className="mt-3 text-center text-xs text-[var(--text-muted)]">
-                Supports PDF, video, audio, images, code, and packs. Files are stored on ShelbyNet.
+                Supports PDF, video, audio, images, code, and packs. Encrypted uploads store
+                ciphertext only on ShelbyNet.
               </p>
             </>
           ) : (
@@ -344,15 +354,17 @@ export default function AssetCreator() {
       ) : (
         <div className="space-y-8">
           <div className="card p-5">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <CheckCircle2 className="h-5 w-5 text-[var(--green)]" />
               <p className="font-medium">{blobRefs.length} file(s) uploaded to Shelby</p>
+              {encryptionMaterials.some((m) => m?.isEncrypted) && <EncryptedBadge size="sm" />}
             </div>
 
             <ul className="mt-3 text-xs text-[var(--text-muted)] max-h-24 overflow-auto">
               {blobRefs.map((ref, i) => (
                 <li key={i} className="break-all font-mono">
                   {fileMetas[i]?.name || `file-${i}`} ✓
+                  {encryptionMaterials[i]?.isEncrypted ? " · encrypted" : ""}
                 </li>
               ))}
             </ul>

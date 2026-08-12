@@ -5,6 +5,8 @@ import Link from "next/link";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { formatApt } from "@/lib/utils";
 import { CopyLinkButton } from "@/components/ui/copy-link-button";
+import { EncryptedDownloadButton } from "@/components/media/encrypted-download-button";
+import { EncryptedBadge } from "@/components/ui/encrypted-badge";
 
 type LibraryData = {
   purchases: Array<{
@@ -12,7 +14,14 @@ type LibraryData = {
     title?: string;
     amountApt: number;
     createdAt: string;
-    asset?: { id: string; title: string; priceApt: number; blobRef?: string | null; fileName?: string | null } | null;
+    asset?: {
+      id: string;
+      title: string;
+      priceApt: number;
+      blobRef?: string | null;
+      fileName?: string | null;
+      isEncrypted?: boolean;
+    } | null;
     product?: { id: string; title: string; productType: string } | null;
     certificate?: { verificationSlug: string; certificateId: string } | null;
   }>;
@@ -25,6 +34,7 @@ type LibraryData = {
     isListed: boolean;
     createdAt: string;
     isPurchased?: boolean;
+    isEncrypted?: boolean;
   }>;
   certificates: Array<{
     id: string;
@@ -210,7 +220,10 @@ export function LibraryTabs({ data }: { data: LibraryData }) {
             return (
               <li key={`owned-${a.id}`} className="card flex items-center justify-between gap-4 p-4">
                 <div className="min-w-0">
-                  <p className="font-medium">{a.title}</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="font-medium">{a.title}</p>
+                    {a.isEncrypted && <EncryptedBadge size="sm" />}
+                  </div>
                   <p className="text-xs text-[var(--text-muted)]">
                     {formatApt(a.priceApt)} APT · uploaded {new Date(a.createdAt).toLocaleDateString()}
                     {a.isListed ? " · Listed" : ""}
@@ -218,8 +231,15 @@ export function LibraryTabs({ data }: { data: LibraryData }) {
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   <Link href={`/assets/${a.id}`} className="btn-accent-ghost text-sm">Open</Link>
-                  {dl && (
-                    <a href={dl} download className="btn-primary text-sm px-4 py-2">Download</a>
+                  {(dl || a.isEncrypted) && (
+                    <EncryptedDownloadButton
+                      downloadUrl={dl}
+                      fileName={a.fileName || a.title}
+                      isEncrypted={!!a.isEncrypted}
+                      keyPackageUrl={`/api/assets/${a.id}/decrypt-package`}
+                      asOwner
+                      className="btn-primary text-sm px-4 py-2 inline-flex items-center gap-1.5"
+                    />
                   )}
                 </div>
               </li>
@@ -237,7 +257,10 @@ export function LibraryTabs({ data }: { data: LibraryData }) {
             return (
               <li key={p.id} className="card flex items-center justify-between gap-4 p-4">
                 <div className="min-w-0">
-                  <p className="font-medium">{a.title}</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="font-medium">{a.title}</p>
+                    {a.isEncrypted && <EncryptedBadge size="sm" />}
+                  </div>
                   <p className="text-xs text-[var(--text-muted)]">
                     {formatApt(p.amountApt)} APT · purchased {new Date(p.createdAt).toLocaleDateString()}
                   </p>
@@ -249,8 +272,14 @@ export function LibraryTabs({ data }: { data: LibraryData }) {
                       Certificate
                     </Link>
                   )}
-                  {dl && (
-                    <a href={dl} download className="btn-primary text-sm px-4 py-2">Download</a>
+                  {(dl || a.isEncrypted) && (
+                    <EncryptedDownloadButton
+                      downloadUrl={dl}
+                      fileName={a.fileName || a.title}
+                      isEncrypted={!!a.isEncrypted}
+                      keyPackageUrl={`/api/assets/${a.id}/decrypt-package`}
+                      className="btn-primary text-sm px-4 py-2 inline-flex items-center gap-1.5"
+                    />
                   )}
                 </div>
               </li>

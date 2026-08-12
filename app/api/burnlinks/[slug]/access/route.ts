@@ -6,7 +6,9 @@ import {
   assertViewLimits,
   assertWalletGate,
   buildGrantStreamUrl,
+  ownerWalletOf,
 } from "@/lib/burnlink-access";
+import { toAuthorizedKeyPackage } from "@/lib/encryption";
 
 function formatExpiresIn(expiresAt: Date | null): string | null {
   if (!expiresAt) return null;
@@ -50,6 +52,11 @@ export async function GET(
           blobId: true,
           mimeType: true,
           fileName: true,
+          isEncrypted: true,
+          encryptionVersion: true,
+          wrappedKeyOwner: true,
+          wrappedKeyShare: true,
+          encryptionShareKey: true,
         },
       },
       owner: {
@@ -104,6 +111,30 @@ export async function GET(
       ? Math.max(0, burnlink.maxViews - viewsAfter)
       : null;
 
+  const ownerWallet = ownerWalletOf(burnlink);
+  let isOwner = false;
+  try {
+    isOwner = !!(
+      ownerWallet &&
+      normalizeAptosAddress(ownerWallet) === normalizeAptosAddress(walletAddress)
+    );
+  } catch {
+    isOwner = false;
+  }
+
+  const encryption = toAuthorizedKeyPackage(
+    {
+      isEncrypted: burnlink.file.isEncrypted,
+      encryptionVersion: burnlink.file.encryptionVersion,
+      wrappedKeyOwner: burnlink.file.wrappedKeyOwner,
+      wrappedKeyShare: burnlink.file.wrappedKeyShare,
+      encryptionShareKey: burnlink.file.encryptionShareKey,
+      mimeType: burnlink.file.mimeType,
+      fileName,
+    },
+    { includeOwnerWrap: isOwner }
+  );
+
   return NextResponse.json({
     id: burnlink.id,
     title: burnlink.title || fileName || "Untitled BurnLink",
@@ -118,5 +149,8 @@ export async function GET(
     screenshotProtected: burnlink.screenshotProtected,
     disableDownload: burnlink.disableDownload,
     slug,
+    isEncrypted: !!burnlink.file.isEncrypted,
+    encryption,
+    asOwner: isOwner,
   });
 }

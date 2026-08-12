@@ -40,7 +40,18 @@ export async function GET(request: Request) {
     take: 50,
   });
 
-  return NextResponse.json({ assets });
+  // Strip key material from list responses
+  const safeAssets = assets.map((a) => {
+    const {
+      encryptionShareKey: _s,
+      wrappedKeyOwner: _o,
+      wrappedKeyShare: _w,
+      ...rest
+    } = a;
+    return rest;
+  });
+
+  return NextResponse.json({ assets: safeAssets });
 }
 
 export async function POST(request: Request) {
@@ -53,14 +64,39 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "blobRef and title required" }, { status: 400 });
     }
 
+    const encryption = body.encryption?.isEncrypted
+      ? {
+          isEncrypted: true as const,
+          encryptionVersion: Number(body.encryption.encryptionVersion || 1),
+          wrappedKeyOwner: body.encryption.wrappedKeyOwner as string,
+          wrappedKeyShare: body.encryption.wrappedKeyShare as string,
+          encryptionShareKey: body.encryption.encryptionShareKey as string,
+          mimeType: body.encryption.mimeType as string | undefined,
+          plaintextSize: body.encryption.plaintextSize as number | undefined,
+        }
+      : null;
+
+    if (encryption) {
+      if (
+        !encryption.wrappedKeyOwner ||
+        !encryption.wrappedKeyShare ||
+        !encryption.encryptionShareKey
+      ) {
+        return NextResponse.json(
+          { error: "Incomplete encryption material" },
+          { status: 400 }
+        );
+      }
+    }
+
     const asset = await createAsset({
       userId: user.id,
       title: body.title,
       description: body.description,
       blobRef: body.blobRef,
       fileName: body.fileName,
-      mimeType: body.mimeType || body.fileMime,
-      fileSize: body.fileSize,
+      mimeType: encryption?.mimeType || body.mimeType || body.fileMime,
+      fileSize: encryption?.plaintextSize ?? body.fileSize,
       category: body.category,
       priceApt: Number(body.priceApt || 0),
       visibility: body.visibility || "public",
@@ -71,9 +107,26 @@ export async function POST(request: Request) {
       isStream: body.isStream ?? false,
       streamVisibility: body.streamVisibility || body.streamVisibility || "everyone",
       streamPriceApt: Number(body.streamPriceApt || 0),
+      isEncrypted: !!encryption,
+      encryptionVersion: encryption?.encryptionVersion,
+      wrappedKeyOwner: encryption?.wrappedKeyOwner,
+      wrappedKeyShare: encryption?.wrappedKeyShare,
+      encryptionShareKey: encryption?.encryptionShareKey,
     });
 
-    return NextResponse.json({ asset });
+    // Never echo share key back on create responses used by public clients
+    const { encryptionShareKey: _omit, ...safeAsset } = asset as typeof asset & {
+      encryptionShareKey?: string | null;
+    };
+
+    return NextResponse.json({
+      asset: {
+        ...safeAsset,
+        isEncrypted: asset.isEncrypted,
+        // Owner still needs their wrap for local re-decrypt; share key stays server-side only here
+        hasEncryption: asset.isEncrypted,
+      },
+    });
   } catch (error: any) {
     console.error("Failed to create asset:", error);
     return NextResponse.json(

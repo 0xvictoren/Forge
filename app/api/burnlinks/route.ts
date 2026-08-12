@@ -5,6 +5,7 @@ import { generateSlug } from "@/lib/utils";
 import { PLATFORM_FEE_BPS } from "@/lib/constants";
 import { normalizeAptosAddress, parseWalletList } from "@/lib/wallet-access";
 import { createAssetFromBurnLink } from "@/lib/v2/assets";
+import { encryptionFieldsForDb, type EncryptionMaterial } from "@/lib/encryption";
 
 export async function POST(request: Request) {
   const user = await getSessionUser();
@@ -29,6 +30,7 @@ export async function POST(request: Request) {
     let walletGated = false;
     let allowedWallets: string[] = [];
     let thumbnailRef: string | undefined;
+    let encryption: EncryptionMaterial | null = null;
 
     if (contentType.includes("application/json")) {
       const body = await request.json();
@@ -56,6 +58,31 @@ export async function POST(request: Request) {
         allowedWallets = parseWalletList(body.allowedWallets);
       }
       thumbnailRef = body.thumbnailRef || undefined;
+
+      // Client-side encryption package (wrapped keys only — never raw content key)
+      if (body.encryption?.isEncrypted) {
+        encryption = {
+          isEncrypted: true,
+          encryptionVersion: Number(body.encryption.encryptionVersion || 1) as 1,
+          mimeType: body.encryption.mimeType || fileMime,
+          plaintextSize: Number(body.encryption.plaintextSize || fileSize),
+          wrappedKeyOwner: String(body.encryption.wrappedKeyOwner || ""),
+          wrappedKeyShare: String(body.encryption.wrappedKeyShare || ""),
+          encryptionShareKey: String(body.encryption.encryptionShareKey || ""),
+        };
+        if (
+          !encryption.wrappedKeyOwner ||
+          !encryption.wrappedKeyShare ||
+          !encryption.encryptionShareKey
+        ) {
+          return NextResponse.json(
+            { error: "Incomplete encryption material" },
+            { status: 400 }
+          );
+        }
+        fileMime = encryption.mimeType;
+        fileSize = encryption.plaintextSize || fileSize;
+      }
     } else {
       return NextResponse.json(
         {
@@ -77,6 +104,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Shelby blob reference required" }, { status: 400 });
     }
 
+    const encFields = encryptionFieldsForDb(encryption);
+
     const fileRecord = await prisma.file.create({
       data: {
         userId: user.id,
@@ -84,6 +113,11 @@ export async function POST(request: Request) {
         fileName: title,
         mimeType: fileMime,
         fileSize: fileSize,
+        isEncrypted: encFields.isEncrypted,
+        encryptionVersion: encFields.encryptionVersion ?? undefined,
+        wrappedKeyOwner: encFields.wrappedKeyOwner ?? undefined,
+        wrappedKeyShare: encFields.wrappedKeyShare ?? undefined,
+        encryptionShareKey: encFields.encryptionShareKey ?? undefined,
       },
     });
 
@@ -162,5 +196,23 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  return NextResponse.json({ burnLink });
+  // Never expose key material on public BurnLink metadata
+  const { file, ...rest } = burnLink;
+  const safeFile = file
+    ? {
+        id: file.id,
+        blobId: file.blobId,
+        fileName: file.fileName,
+        mimeType: file.mimeType,
+        fileSize: file.fileSize,
+        isEncrypted: file.isEncrypted,
+        encryptionVersion: file.encryptionVersion,
+        createdAt: file.createdAt,
+        userId: file.userId,
+      }
+    : null;
+
+  return NextResponse.json({
+    burnLink: { ...rest, file: safeFile },
+  });
 }

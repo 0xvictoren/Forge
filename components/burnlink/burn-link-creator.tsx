@@ -9,6 +9,8 @@ import { getExplorerUrl } from "@/lib/explorer";
 import { useShelbyWalletUpload } from "@/hooks/use-shelby-wallet-upload";
 import { getShelbyPublicUrl } from "@/lib/shelby-public";
 import { formatShelbyUploadError } from "@/lib/shelby-upload-errors";
+import type { EncryptionMaterial } from "@/lib/encryption";
+import { EncryptedBadge } from "@/components/ui/encrypted-badge";
 
 export default function BurnLinkCreator() {
   const { account } = useWallet();
@@ -18,6 +20,8 @@ export default function BurnLinkCreator() {
   const [blobRefs, setBlobRefs] = useState<string[]>([]);
   const [thumbnailRef, setThumbnailRef] = useState<string | null>(null);
   const [txData, setTxData] = useState<ShelbyTxData | null>(null);
+  const [fileMeta, setFileMeta] = useState<{ name: string; size: number; mime: string } | null>(null);
+  const [encryption, setEncryption] = useState<EncryptionMaterial | null>(null);
   const [priceApt, setPriceApt] = useState(0);
   const [maxViews, setMaxViews] = useState(10);
   const [title, setTitle] = useState("");
@@ -25,10 +29,21 @@ export default function BurnLinkCreator() {
   const [allowedWalletsText, setAllowedWalletsText] = useState("");
   const [isCreating, setIsCreating] = useState(false);
 
-  const handleUploadSuccess = (refs: string[], data: ShelbyTxData) => {
+  const handleUploadSuccess = (
+    refs: string[],
+    data: ShelbyTxData,
+    metas?: Array<{ name: string; size: number; mime: string }>,
+    encryptionMaterials?: Array<EncryptionMaterial | null>
+  ) => {
     setBlobRefs(refs);
     setTxData(data);
-    toast.success("File stored on Shelby!");
+    if (metas?.[0]) setFileMeta(metas[0]);
+    setEncryption(encryptionMaterials?.[0] ?? null);
+    toast.success(
+      encryptionMaterials?.[0]
+        ? "Encrypted file stored on Shelby!"
+        : "File stored on Shelby!"
+    );
   };
 
   const createBurnLink = async () => {
@@ -56,11 +71,15 @@ export default function BurnLinkCreator() {
           storageTxHash: txData?.aptosTxHash,
           priceApt,
           maxViews,
-          title: title || "Untitled BurnLink",
+          title: title || fileMeta?.name || "Untitled BurnLink",
+          fileMime: fileMeta?.mime,
+          fileSize: fileMeta?.size,
+          mimeType: fileMeta?.mime,
           expiresAt: expiresAt?.toISOString(),
           walletGated,
           allowedWallets: walletGated ? allowedWalletsText : [],
           thumbnailRef: thumbnailRef || undefined,
+          encryption: encryption || undefined,
         }),
       });
 
@@ -92,12 +111,21 @@ export default function BurnLinkCreator() {
             mode="burnlink"
             storageFeeApt={0.5}
             maxFiles={1}
+            encrypt
             onSuccess={handleUploadSuccess}
           />
         </div>
 
         {blobRefs.length > 0 && (
           <div className="mt-8 space-y-6">
+            {encryption && (
+              <div className="flex items-center gap-2 rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-3 text-sm">
+                <EncryptedBadge />
+                <span className="text-[var(--text-secondary)]">
+                  Ciphertext on Shelby · keys wrapped for your wallet
+                </span>
+              </div>
+            )}
             {txData?.shelbyTxHash && (
               <div className="rounded-2xl bg-[var(--bg-subtle)] p-3 font-mono text-xs">
                 <span className="font-semibold">Shelby registration: </span>
