@@ -2,10 +2,6 @@ import "server-only";
 
 import { getShelbyClient, getShelbySigner } from "@/lib/shelby-client";
 import { encodeBlobRef, getShelbyPublicUrl } from "@/lib/shelby-public";
-import {
-  createDefaultErasureCodingProvider,
-  generateCommitments,
-} from "@shelby-protocol/sdk/node";
 
 /**
  * Clean, focused helper for Stream video uploads using the Shelby SDK
@@ -13,8 +9,7 @@ import {
  *
  * This encapsulates:
  * - Server signer lookup + configuration validation
- * - On-chain blob registration (coordination)
- * - Resumable data upload to the distributed storage network
+ * - On-chain blob registration, chunkset upload, and commit
  * - Consistent blobRef (shelby:0x...::...) and proxied URL generation
  *
  * Duration is intentionally returned as `null` because accurate video duration
@@ -51,7 +46,7 @@ export async function uploadVideoToStream(
   let buffer: Buffer;
   try {
     buffer = Buffer.from(await file.arrayBuffer());
-  } catch (err) {
+  } catch {
     throw new Error("Failed to read video file data");
   }
 
@@ -65,48 +60,16 @@ export async function uploadVideoToStream(
   const expirationMicros =
     Date.now() * 1000 + 365 * 24 * 60 * 60 * 1_000_000;
 
-  let shelbyTxHash: string | undefined;
-
   try {
-    // Check for existing registration (makes re-uploads of same logical name safer)
-    const existing = await client.coordination.getBlobMetadata({
-      account: signer.accountAddress,
-      name: blobName,
-    });
-
-    if (!existing) {
-      const provider = await createDefaultErasureCodingProvider();
-      const blobCommitments = await generateCommitments(
-        provider,
-        new Uint8Array(buffer)
-      );
-
-      const { transaction } = await client.coordination.registerBlob({
-        account: signer,
-        blobName,
-        blobMerkleRoot: blobCommitments.blob_merkle_root,
-        size: buffer.length,
-        expirationMicros,
-        config: provider.config,
-      });
-
-      shelbyTxHash = transaction.hash;
-
-      // Wait for the registration tx to settle on ShelbyNet
-      await client.coordination.aptos.waitForTransaction({
-        transactionHash: transaction.hash,
-      });
-    }
-
-    // Upload (or re-upload) the actual blob data using the resumable endpoint
-    await client.rpc.putBlobResumable({
-      account: signer,
-      blobName,
+    // SDK 0.7+: register → putBlobChunksets → commit_object (overwrite).
+    await client.upload({
       blobData: new Uint8Array(buffer),
+      signer,
+      blobName,
+      expirationMicros,
     });
-  } catch (err: any) {
-    // Re-throw with clearer context for the route layer
-    const msg = err?.message || String(err);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
     if (msg.includes("insufficient") || msg.includes("balance")) {
       throw new Error("Shelby account has insufficient balance for storage. Fund with APT and ShelbyUSD on shelbynet.");
     }
@@ -124,6 +87,5 @@ export async function uploadVideoToStream(
     size,
     fileName: file.name,
     mimeType,
-    shelbyTxHash,
   };
 }

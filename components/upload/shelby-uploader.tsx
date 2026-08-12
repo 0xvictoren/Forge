@@ -243,7 +243,7 @@ export default function ShelbyUploader({
   const statusLabel = (() => {
     if (phase === "fee") return "Paying storage fee…";
     if (phase === "encrypting") return "Encrypting (AES-256-GCM)…";
-    if (phase === "uploading") return "Uploading ciphertext to Shelby…";
+    if (phase === "uploading") return "Uploading to Shelby (approve register, then commit)…";
     if (mode === "burnlink") return `Pay ${storageFeeApt} APT & Upload`;
     return encryptEnabled ? "Encrypt & upload to Shelby" : "Upload to Shelby";
   })();

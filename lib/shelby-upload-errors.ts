@@ -14,5 +14,20 @@ export function formatShelbyUploadError(message: string): string {
   if (lower.includes("user rejected") || lower.includes("rejected the")) {
     return "Transaction cancelled in wallet.";
   }
+  if (
+    lower.includes("e_no_location_selected") ||
+    lower.includes("no location") ||
+    lower.includes("locationhint")
+  ) {
+    return "Shelby registration needs a storage location. Refresh and try again.";
+  }
+  if (
+    lower.includes("field 'blob_name'") ||
+    lower.includes('field "blob_name"') ||
+    lower.includes("field 'blobs'") ||
+    (lower.includes("cannot query field") && lower.includes("blobs"))
+  ) {
+    return "Shelby indexer schema changed. Update @shelby-protocol/sdk and retry.";
+  }
   return message.length > 280 ? `${message.slice(0, 280)}…` : message;
 }

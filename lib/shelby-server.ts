@@ -7,11 +7,6 @@ import {
   type ShelbyUploadResult,
 } from "./shelby-public";
 import { getShelbyClient, getShelbySigner } from "./shelby-client";
-import {
-  createDefaultErasureCodingProvider,
-  generateCommitments,
-  type ShelbyNodeClient,
-} from "@shelby-protocol/sdk/node";
 
 function sanitizeName(name: string): string {
   return name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 120);
@@ -42,44 +37,14 @@ export async function uploadToShelby(
       ? metadata.expirationMicros
       : Date.now() * 1000 + 365 * 24 * 60 * 60 * 1_000_000;
 
-  let shelbyTxHash: string | undefined;
-  const existing = await client.coordination.getBlobMetadata({
-    account: signer.accountAddress,
-    name: blobName,
-  });
-
-  if (!existing) {
-    try {
-      const provider = await createDefaultErasureCodingProvider();
-      const blobCommitments = await generateCommitments(provider, new Uint8Array(buffer));
-      const { transaction } = await client.coordination.registerBlob({
-        account: signer,
-        blobName,
-        blobMerkleRoot: blobCommitments.blob_merkle_root,
-        size: buffer.length,
-        expirationMicros,
-        config: provider.config,
-      });
-      shelbyTxHash = transaction.hash;
-      await client.coordination.aptos.waitForTransaction({
-        transactionHash: transaction.hash,
-      });
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (/insufficient.*balance/i.test(msg)) {
-        throw new Error(
-          "Server Shelby signer has insufficient APT for storage fees. Connect your wallet to upload from the browser, or fund SHELBY_SIGNER_PRIVATE_KEY on ShelbyNet."
-        );
-      }
-      throw err;
-    }
-  }
-
   try {
-    await client.rpc.putBlobResumable({
-      account: signer,
-      blobName,
+    // SDK 0.7+: register → putBlobChunksets → commit_object (overwrite).
+    // Does not query the old GraphQL `blob_name` columns.
+    await client.upload({
       blobData: new Uint8Array(buffer),
+      signer,
+      blobName,
+      expirationMicros,
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -94,7 +59,7 @@ export async function uploadToShelby(
   const account = signer.accountAddress.toString();
   const cid = encodeBlobRef(account, blobName);
 
-  return { cid, mimeType, size, account, blobName, shelbyTxHash };
+  return { cid, mimeType, size, account, blobName };
 }
 
 export async function downloadFromShelby(ref: string): Promise<{
@@ -194,14 +159,8 @@ export async function deleteFromShelby(ref: string): Promise<string | null> {
     throw new Error("Shelby signer not configured");
   }
 
-  const client = getShelbyClient() as ShelbyNodeClient & {
-    deleteBlob: (params: {
-      account: typeof signer;
-      blobName: string;
-    }) => Promise<{ transaction: { hash: string } }>;
-  };
-
-  const { transaction } = await client.deleteBlob({
+  const client = getShelbyClient();
+  const { transaction } = await client.coordination.deleteObject({
     account: signer,
     blobName: parsed.blobName,
   });

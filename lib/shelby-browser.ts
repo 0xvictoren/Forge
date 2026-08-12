@@ -2,6 +2,11 @@
 
 import { ShelbyClient } from "@shelby-protocol/sdk/browser";
 import { Network } from "@aptos-labs/ts-sdk";
+import {
+  SHELBY_INDEXER_URL,
+  SHELBY_LOCATION_HINT,
+  SHELBY_RPC_URL,
+} from "./constants-shelby";
 
 let shelbyBrowserClient: ShelbyClient | null = null;
 
@@ -16,10 +21,9 @@ export function getShelbyBrowserClient(): ShelbyClient {
     shelbyBrowserClient = new ShelbyClient({
       network: Network.SHELBYNET,
       apiKey,
-      aptos: {
-        network: Network.SHELBYNET,
-        clientConfig: apiKey ? { API_KEY: apiKey } : undefined,
-      },
+      locationHint: SHELBY_LOCATION_HINT,
+      indexer: { baseUrl: SHELBY_INDEXER_URL, apiKey: apiKey || undefined },
+      rpc: { baseUrl: SHELBY_RPC_URL, apiKey: apiKey || undefined },
     });
   }
   return shelbyBrowserClient;

@@ -1,6 +1,11 @@
 import "server-only";
 import { ShelbyNodeClient } from "@shelby-protocol/sdk/node";
 import { Account, Ed25519PrivateKey, Network } from "@aptos-labs/ts-sdk";
+import {
+  SHELBY_INDEXER_URL,
+  SHELBY_LOCATION_HINT,
+  SHELBY_RPC_URL,
+} from "./constants-shelby";
 
 let shelbyClient: ShelbyNodeClient | null = null;
 let shelbySigner: Account | null = null;
@@ -22,10 +27,9 @@ export function getShelbyClient(): ShelbyNodeClient {
     shelbyClient = new ShelbyNodeClient({
       network: Network.SHELBYNET,
       apiKey,
-      aptos: {
-        network: Network.SHELBYNET,
-        clientConfig: apiKey ? { API_KEY: apiKey } : undefined,
-      },
+      locationHint: SHELBY_LOCATION_HINT,
+      indexer: { baseUrl: SHELBY_INDEXER_URL, apiKey: apiKey || undefined },
+      rpc: { baseUrl: SHELBY_RPC_URL, apiKey: apiKey || undefined },
     });
   }
   return shelbyClient;
