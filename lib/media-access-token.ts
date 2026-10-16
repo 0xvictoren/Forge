@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from "crypto";
 
-const DEFAULT_TTL_SEC = 3600;
+const DEFAULT_TTL_SEC = 5 * 60;
 
 function getSecret(): string {
   const secret = process.env.JWT_SECRET || process.env.MEDIA_ACCESS_SECRET;

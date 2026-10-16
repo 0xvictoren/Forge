@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { redactSensitiveResponse } from "@/lib/security-response";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -140,9 +141,9 @@ export async function GET(request: Request) {
       });
 
   return NextResponse.json({
-    assets,
-    trending,
-    featured,
-    recent: assets,
+    assets: redactSensitiveResponse(assets, { redactStorageReferences: true }),
+    trending: redactSensitiveResponse(trending, { redactStorageReferences: true }),
+    featured: redactSensitiveResponse(featured, { redactStorageReferences: true }),
+    recent: redactSensitiveResponse(assets, { redactStorageReferences: true }),
   });
 }

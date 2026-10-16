@@ -77,9 +77,7 @@ export async function GET(request: Request) {
         title: c.title,
         subtitle: c.category || c.contentType,
         href: `/${c.creator.handle}`,
-        image: c.thumbnailCid
-          ? getShelbyPublicUrl(c.thumbnailCid)
-          : getShelbyPublicUrl(c.shelbyCid),
+        image: c.thumbnailCid ? getShelbyPublicUrl(c.thumbnailCid) : undefined,
       });
     }
   }

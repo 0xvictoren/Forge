@@ -78,6 +78,14 @@ model User {
   workspaceMemberships WorkspaceMember[]
   referralCode    ReferralCode?
   libraryActivity LibraryActivity[]
+  datasets        Dataset[]
+  datasetLicensesBought DatasetLicense[] @relation("DatasetLicenseBuyer")
+  datasetLicensesSold   DatasetLicense[] @relation("DatasetLicenseSeller")
+  agentChannels         AgentChannel[]
+  agentReadsBought      AgentRead[] @relation("AgentReadBuyer")
+  agentReadsSold        AgentRead[] @relation("AgentReadSeller")
+  sellerPayouts         SellerPayout[]
+  complianceProjects    ComplianceProject[]
 }
 
 model LibraryActivity {
@@ -310,8 +318,16 @@ model Transaction {
   counterpartyWallet String?
   description        String
   txHash             String    @unique
+  /// Canonical on-chain hash. `txHash` is retained as the legacy ledger key.
+  settlementTxHash   String?
+  currency           String    @default("APT_TESTNET")
+  amountAtomic       String?
+  feeAtomic          String?
+  netAtomic          String?
   status             String    @default("confirmed")
   createdAt          DateTime  @default(now())
+
+  @@index([settlementTxHash])
 }
 
 model Tip {
@@ -406,6 +422,22 @@ model Asset {
   description   String?
   thumbnailRef  String?
   blobRef       String
+  /// Stable logical dataset and immutable content-version identifiers.
+  datasetId     String?
+  versionId     String?
+  versionNumber Int      @default(1)
+  contentSha256 String?
+  integrityStatus String   @default("UNVERIFIED")
+  integrityLastCheckedAt DateTime?
+  storageOwner  String?
+  storageTxHash String?
+  storageExpiresAt DateTime?
+  storageStatus String    @default("UNKNOWN")
+  storageLastCheckedAt DateTime?
+  storageFailureReason String?
+  renewalStatus String    @default("UNSCHEDULED")
+  renewalAttempts Int     @default(0)
+  renewalNextAttemptAt DateTime?
   fileName      String?
   mimeType      String?
   fileSize      Int?
@@ -440,6 +472,10 @@ model Asset {
   productItems  ProductItem[]
   purchases     Purchase[]
   certificates  Certificate[]
+
+  @@index([datasetId])
+  @@index([versionId])
+  @@index([storageStatus, storageExpiresAt])
 }
 
 model AssetMetadata {
@@ -550,11 +586,51 @@ model Purchase {
   amountApt    Float
   feeApt       Float    @default(0)
   netApt       Float
+  /// Canonical settlement values. Legacy APT floats above are display-only.
+  currency     String   @default("APT_TESTNET")
+  amountAtomic String?
+  feeAtomic    String?
+  netAtomic    String?
+  /// Unique when set — enforced by the partial index in scripts/ensure-indexes.ts
+  /// (Prisma @unique would treat legacy nulls as duplicates on MongoDB).
+  paymentIntentId String?
+  productIdentifier String?
+  versionIdentifier String?
+  paymentNonce String?
   txHash       String   @unique
   purchaseType String
   createdAt    DateTime @default(now())
 
   certificate  Certificate?
+}
+
+/// Short-lived, server-priced purchase authorization. A transaction may only
+/// settle the exact target, buyer, recipient, currency, and amount recorded here.
+model PaymentIntent {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  nonce        String   @unique
+  buyerId      String   @db.ObjectId
+  sellerId     String   @db.ObjectId
+  kind         String
+  targetId     String
+  currency     String   @default("APT_TESTNET")
+  amountAtomic String
+  feeAtomic    String
+  netAtomic    String
+  feeBps       Int
+  recipient    String
+  productIdentifier String
+  versionIdentifier String
+  termsHash    String
+  status       String   @default("PENDING")
+  /// Unique when set — partial index in scripts/ensure-indexes.ts
+  txHash       String?
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([buyerId, status])
+  @@index([kind, targetId])
 }
 
 model Certificate {
@@ -649,4 +725,356 @@ model WaitlistEntry {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
   email     String   @unique
   createdAt DateTime @default(now())
+}
+
+// ─── Data marketplace + provenance ───────────────────────────────────────────
+
+/// A logical dataset. Content lives in immutable, sealed DatasetVersions.
+model Dataset {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  ownerId         String   @db.ObjectId
+  owner           User     @relation(fields: [ownerId], references: [id])
+  slug            String   @unique
+  title           String
+  tagline         String?
+  description     String?
+  modality        String   @default("MULTIMODAL")
+  tags            String[] @default([])
+  coverUrl        String?
+  coverCredit     String?
+  /// "private" = sealed for compliance only; "listed" = on the marketplace
+  visibility      String   @default("private")
+  /// DRAFT | PUBLISHED | EXCLUSIVE_SOLD | ARCHIVED
+  status          String   @default("DRAFT")
+  /// [{ template: RESEARCH|COMMERCIAL|EXCLUSIVE, priceApt }]
+  offers          Json?
+  /// Pay-per-read for agents: { enabled, pricePerGbApt, minChargeApt }
+  readPricing     Json?
+  latestVersionId String?  @db.ObjectId
+  licenseCount    Int      @default(0)
+  viewCount       Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  versions        DatasetVersion[]
+  licenses        DatasetLicense[]
+  accessLogs      DatasetAccessLog[]
+
+  @@index([ownerId])
+  @@index([visibility, status])
+}
+
+model DatasetVersion {
+  id             String    @id @default(auto()) @map("_id") @db.ObjectId
+  datasetId      String    @db.ObjectId
+  dataset        Dataset   @relation(fields: [datasetId], references: [id])
+  versionNumber  Int
+  changelog      String?
+  /// DRAFT | SEALED
+  status         String    @default("DRAFT")
+  fileCount      Int       @default(0)
+  totalBytes     Float     @default(0)
+  manifest       Json?
+  datasheet      Json?
+  manifestHash   String?
+  datasheetHash  String?
+  sealHash       String?
+  anchorTxHash   String?
+  anchorNetwork  String?
+  anchoredAt     DateTime?
+  sealedAt       DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  files          DatasetFile[]
+  licenses       DatasetLicense[]
+
+  @@unique([datasetId, versionNumber])
+  @@index([sealHash])
+}
+
+model DatasetFile {
+  id                 String         @id @default(auto()) @map("_id") @db.ObjectId
+  versionId          String         @db.ObjectId
+  version            DatasetVersion @relation(fields: [versionId], references: [id])
+  path               String
+  sizeBytes          Float
+  mimeType           String
+  /// SHA-256 of the plaintext (what the manifest seals)
+  sha256             String
+  blobRef            String
+  storageTxHash      String?
+  storageExpiresAt   DateTime?
+  /// Public preview file — stored unencrypted
+  isSample           Boolean        @default(false)
+  isEncrypted        Boolean        @default(true)
+  /// 1 = single-shot AES-GCM (lib/encryption), 2 = chunked FGC2
+  encryptionVersion  Int?
+  wrappedKeyOwner    String?
+  wrappedKeyShare    String?
+  /// Share secret — never return on public endpoints
+  encryptionShareKey String?
+  createdAt          DateTime       @default(now())
+
+  @@index([versionId])
+}
+
+/// A licence is the buyer's certificate. Each one carries its own fingerprint.
+model DatasetLicense {
+  id               String         @id @default(auto()) @map("_id") @db.ObjectId
+  datasetId        String         @db.ObjectId
+  dataset          Dataset        @relation(fields: [datasetId], references: [id])
+  versionId        String         @db.ObjectId
+  version          DatasetVersion @relation(fields: [versionId], references: [id])
+  buyerId          String         @db.ObjectId
+  buyer            User           @relation("DatasetLicenseBuyer", fields: [buyerId], references: [id])
+  sellerId         String         @db.ObjectId
+  seller           User           @relation("DatasetLicenseSeller", fields: [sellerId], references: [id])
+  /// Unique when set — partial index in scripts/ensure-indexes.ts (free licences have none)
+  purchaseId       String?        @db.ObjectId
+  paymentIntentId  String?
+  template         String
+  licenseText      String
+  licenseTextHash  String
+  termsHash        String
+  /// Aptos settlement tx, or "free:<id>" for zero-priced research licences
+  txHash           String         @unique
+  amountApt        Float          @default(0)
+  /// ACTIVE | REVOKED
+  status           String         @default("ACTIVE")
+  revokedReason    String?
+  /// Public 16-hex id embedded invisibly in delivered copies
+  fingerprintId    String         @unique
+  /// Secret seed for canary generation — never returned to buyers
+  canarySeed       String
+  certificateSlug  String         @unique
+  orgName          String?
+  intendedUse      String?
+  downloadCount    Int            @default(0)
+  lastAccessAt     DateTime?
+  createdAt        DateTime       @default(now())
+
+  accessLogs       DatasetAccessLog[]
+
+  @@index([buyerId])
+  @@index([sellerId])
+  @@index([datasetId])
+}
+
+model DatasetAccessLog {
+  id              String          @id @default(auto()) @map("_id") @db.ObjectId
+  datasetId       String          @db.ObjectId
+  dataset         Dataset         @relation(fields: [datasetId], references: [id])
+  licenseId       String?         @db.ObjectId
+  license         DatasetLicense? @relation(fields: [licenseId], references: [id])
+  userId          String?         @db.ObjectId
+  fileId          String?         @db.ObjectId
+  /// KEY_RELEASE | DOWNLOAD | PIPELINE | CREDENTIAL | SAMPLE | TRACE
+  action          String
+  /// SHA-256 of the exact (fingerprinted) bytes delivered, when applicable
+  deliveredSha256 String?
+  ip              String?
+  userAgent       String?
+  createdAt       DateTime        @default(now())
+
+  @@index([licenseId, createdAt])
+  @@index([datasetId, createdAt])
+  @@index([deliveredSha256])
+}
+
+/// A model / training run whose data sources are documented for compliance.
+model ComplianceProject {
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  ownerId           String   @db.ObjectId
+  owner             User     @relation(fields: [ownerId], references: [id])
+  name              String
+  modelName         String?
+  providerName      String?
+  purpose           String?
+  licenseIds        String[] @default([]) @db.ObjectId
+  datasetVersionIds String[] @default([]) @db.ObjectId
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([ownerId])
+}
+
+// ─── Agent pay-per-read (Shelby micropayment channels) ───────────────────────
+
+/// Forge's view of one Shelby micropayment channel opened by an agent towards
+/// Forge's settlement account. Amounts are octas (u64) stored as strings.
+model AgentChannel {
+  id                 String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId             String   @db.ObjectId
+  user               User     @relation(fields: [userId], references: [id])
+  sender             String
+  receiver           String
+  asset              String
+  channelId          String
+  publicKey          String
+  /// Onchain capacity snapshot (balance + receiver withdrawn) and expiry
+  capacity           String   @default("0")
+  expiresAt          DateTime
+  refreshedAt        DateTime @default(now())
+  /// Highest cumulative amount / sequence Forge has accepted for reads
+  acceptedAmount     String   @default("0")
+  lastSequence       String   @default("-1")
+  /// Base64 BCS of the latest accepted SenderBuiltMicropayment
+  lastMicropayment   String?
+  /// What has been withdrawn onchain into the settlement account
+  withdrawnAmount    String   @default("0")
+  withdrawnSequence  String   @default("-1")
+  label              String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  reads              AgentRead[]
+  withdrawals        ChannelWithdrawal[]
+
+  @@unique([sender, receiver, asset, channelId])
+  @@index([userId])
+}
+
+model AgentRead {
+  id           String        @id @default(auto()) @map("_id") @db.ObjectId
+  channelId    String        @db.ObjectId
+  channel      AgentChannel  @relation(fields: [channelId], references: [id])
+  datasetId    String        @db.ObjectId
+  fileId       String        @db.ObjectId
+  licenseId    String        @db.ObjectId
+  buyerId      String        @db.ObjectId
+  buyer        User          @relation("AgentReadBuyer", fields: [buyerId], references: [id])
+  sellerId     String        @db.ObjectId
+  seller       User          @relation("AgentReadSeller", fields: [sellerId], references: [id])
+  bytes        Float
+  rangeStart   Float?
+  rangeEnd     Float?
+  priceOctas   String
+  sequence     String
+  cumulative   String
+  /// True once the channel has been withdrawn past this read's sequence
+  funded       Boolean       @default(false)
+  payoutId     String?       @db.ObjectId
+  payout       SellerPayout? @relation(fields: [payoutId], references: [id])
+  deliveredSha256 String?
+  createdAt    DateTime      @default(now())
+
+  @@index([sellerId, funded, payoutId])
+  @@index([channelId, sequence])
+  @@index([datasetId, createdAt])
+}
+
+model ChannelWithdrawal {
+  id         String       @id @default(auto()) @map("_id") @db.ObjectId
+  channelId  String       @db.ObjectId
+  channel    AgentChannel @relation(fields: [channelId], references: [id])
+  amount     String
+  sequence   String
+  txHash     String       @unique
+  createdAt  DateTime     @default(now())
+}
+
+model SellerPayout {
+  id          String      @id @default(auto()) @map("_id") @db.ObjectId
+  sellerId    String      @db.ObjectId
+  seller      User        @relation(fields: [sellerId], references: [id])
+  grossOctas  String
+  feeOctas    String
+  netOctas    String
+  readCount   Int
+  asset       String
+  /// PENDING | PAID | FAILED
+  status      String      @default("PENDING")
+  txHash      String?
+  feeTxHash   String?
+  error       String?
+  createdAt   DateTime    @default(now())
+
+  reads       AgentRead[]
+
+  @@index([sellerId, createdAt])
+}
+
+// ─── Live dataset feeds ──────────────────────────────────────────────────────
+
+/// An agent watching a dataset for newly sealed versions, notified by webhook.
+model FeedSubscription {
+  id                  String   @id @default(auto()) @map("_id") @db.ObjectId
+  datasetId           String   @db.ObjectId
+  sender              String
+  webhookUrl          String
+  /// HMAC secret for X-Forge-Signature on deliveries
+  secret              String
+  lastNotifiedVersion Int      @default(0)
+  lastDeliveryStatus  Int?
+  active              Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@unique([datasetId, sender, webhookUrl])
+  @@index([datasetId, active])
+}
+
+// ─── Agent memory vaults ─────────────────────────────────────────────────────
+
+/// Append-only, hash-chained log of an agent's memory checkpoints. Content
+/// lives on Shelby (the agent's own blobs); Forge keeps hashes, signatures and
+/// periodic onchain anchors so "what did the agent know, when" is provable.
+model MemoryVault {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  sender       String
+  name         String
+  headSequence Int      @default(0)
+  headHash     String   @default("0000000000000000000000000000000000000000000000000000000000000000")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  checkpoints  MemoryCheckpoint[]
+
+  @@unique([sender, name])
+}
+
+model MemoryCheckpoint {
+  id             String             @id @default(auto()) @map("_id") @db.ObjectId
+  vaultId        String             @db.ObjectId
+  vault          MemoryVault        @relation(fields: [vaultId], references: [id])
+  sequence       Int
+  sha256         String
+  sizeBytes      Float
+  blobRef        String?
+  note           String?
+  prevHash       String
+  entryHash      String             @unique
+  agentSignature String
+  batchId        String?            @db.ObjectId
+  batch          MemoryAnchorBatch? @relation(fields: [batchId], references: [id])
+  /// Merkle inclusion proof (sibling hashes, leaf to root) once anchored
+  merkleProof    String[]           @default([])
+  createdAt      DateTime           @default(now())
+
+  @@unique([vaultId, sequence])
+}
+
+model MemoryAnchorBatch {
+  id          String             @id @default(auto()) @map("_id") @db.ObjectId
+  number      Int                @unique
+  rootHash    String
+  count       Int
+  txHash      String?
+  createdAt   DateTime           @default(now())
+
+  checkpoints MemoryCheckpoint[]
+}
+
+/// Storage fees Forge paid on a seller's behalf (sponsored Shelby registration).
+model SponsoredUpload {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  versionId String   @db.ObjectId
+  bytes     Float
+  blobCount Int
+  txHash    String   @unique
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
 }

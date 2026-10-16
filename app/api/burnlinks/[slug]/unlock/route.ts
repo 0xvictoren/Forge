@@ -2,15 +2,15 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
 import { PLATFORM_FEE_BPS, TxType } from "@/lib/constants";
-import { verifyAptPayment, calcFee } from "@/lib/payments";
+import { calcFee } from "@/lib/payments";
 import { randomBytes } from "crypto";
 import { recordAnalyticsEvent } from "@/lib/analytics";
 import { createNotification } from "@/lib/notifications";
 import { ensureBurnLinkActive } from "@/lib/shelby-expiry";
-import { findOrCreateWalletUser } from "@/lib/find-or-create-user";
 import { normalizeAptosAddress } from "@/lib/wallet-access";
 import { assertWalletGate } from "@/lib/burnlink-access";
 import { completePurchase } from "@/lib/v2/purchase";
+import { completePaymentIntent, consumePaymentIntent } from "@/lib/payment-intents";
 
 export async function POST(
   request: Request,
@@ -18,6 +18,15 @@ export async function POST(
 ) {
   try {
     const { slug } = await params;
+    const sessionUser = await getSessionUser();
+    if (!sessionUser) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const sessionWallet = sessionUser.walletAddress || sessionUser.address;
+    if (!sessionWallet) {
+      return NextResponse.json({ error: "Authenticated wallet required" }, { status: 401 });
+    }
 
     let body: Record<string, unknown> = {};
     try {
@@ -26,19 +35,15 @@ export async function POST(
       return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
     }
 
-    const rawWallet =
-      (body.walletAddress as string) ||
-      (body.userAddress as string) ||
-      "";
     let walletAddress: string;
     try {
-      walletAddress = normalizeAptosAddress(rawWallet);
+      walletAddress = normalizeAptosAddress(sessionWallet);
     } catch {
-      return NextResponse.json({ error: "Invalid wallet address" }, { status: 400 });
+      return NextResponse.json({ error: "Invalid authenticated wallet" }, { status: 401 });
     }
 
     const txHash = body.txHash as string | undefined;
-    const ownerBypass = !!body.ownerBypass;
+    const intentId = body.intentId as string | undefined;
 
     const burnLink = await prisma.burnLink.findUnique({
       where: { slug },
@@ -57,20 +62,8 @@ export async function POST(
       );
     }
 
-    const ownerWallet =
-      burnLink.owner.walletAddress || burnLink.owner.address || "";
-    let isOwner = false;
-    if (ownerWallet) {
-      try {
-        isOwner =
-          ownerBypass ||
-          normalizeAptosAddress(ownerWallet) === walletAddress;
-      } catch {
-        isOwner = ownerBypass;
-      }
-    } else {
-      isOwner = ownerBypass;
-    }
+    const ownerWallet = burnLink.owner.walletAddress || burnLink.owner.address || "";
+    const isOwner = burnLink.userId === sessionUser.id;
 
     if (!isOwner) {
       const gate = assertWalletGate(burnLink, walletAddress);
@@ -80,7 +73,7 @@ export async function POST(
     }
 
     const existingGrant = await prisma.accessGrant.findFirst({
-      where: { burnLinkId: burnLink.id, walletAddress },
+      where: { burnLinkId: burnLink.id, userId: sessionUser.id },
     });
 
     if (existingGrant?.viewToken) {
@@ -97,14 +90,13 @@ export async function POST(
 
     const isPaid = burnLink.priceApt > 0 && !isOwner;
 
+    let verifiedIntent: Awaited<ReturnType<typeof consumePaymentIntent>> | undefined;
     if (isPaid) {
-      if (!txHash?.startsWith("0x")) {
-        return NextResponse.json({ error: "Transaction hash required" }, { status: 400 });
-      }
-
-      const existing = await prisma.transaction.findUnique({ where: { txHash } });
-      if (existing) {
-        return NextResponse.json({ error: "Transaction already used" }, { status: 409 });
+      if (!txHash?.startsWith("0x") || !intentId) {
+        return NextResponse.json(
+          { error: "Payment intent and transaction hash required" },
+          { status: 400 }
+        );
       }
 
       const creatorWallet = burnLink.owner.walletAddress || burnLink.owner.address;
@@ -112,30 +104,25 @@ export async function POST(
         return NextResponse.json({ error: "Creator wallet missing" }, { status: 400 });
       }
 
-      const verification = await verifyAptPayment(txHash, {
-        sender: walletAddress,
-        recipient: creatorWallet,
-        minAmountApt: burnLink.priceApt * 0.99,
+      verifiedIntent = await consumePaymentIntent({
+        intentId,
+        buyerId: sessionUser.id,
+        walletAddress,
+        kind: "BURNLINK",
+        targetId: burnLink.id,
+        txHash,
       });
-
-      if (!verification.valid) {
-        return NextResponse.json(
-          { error: verification.error || "Payment verification failed" },
-          { status: 400 }
-        );
-      }
     }
 
     const viewToken = randomBytes(32).toString("hex");
-    const { feeApt, netApt } = calcFee(burnLink.priceApt, PLATFORM_FEE_BPS);
+    const { feeApt, netApt } = verifiedIntent
+      ? {
+          feeApt: Number(BigInt(verifiedIntent.feeAtomic)) / 1e8,
+          netApt: Number(BigInt(verifiedIntent.netAtomic)) / 1e8,
+        }
+      : calcFee(burnLink.priceApt, PLATFORM_FEE_BPS);
 
-    const sessionUser = await getSessionUser();
-    let userId = sessionUser?.id;
-
-    if (!userId) {
-      const u = await findOrCreateWalletUser(walletAddress);
-      userId = u.id;
-    }
+    const userId = sessionUser.id;
 
     const grant = existingGrant
       ? await prisma.accessGrant.update({
@@ -166,6 +153,7 @@ export async function POST(
           assetId: asset?.id,
           burnLinkId: burnLink.id,
           title: burnLink.title || slug,
+          settlement: verifiedIntent,
         });
       } catch (e) {
         console.error("Purchase record failed:", e);
@@ -184,6 +172,10 @@ export async function POST(
             counterpartyWallet: walletAddress,
             description: `Sale: ${burnLink.title || slug}`,
             txHash,
+            settlementTxHash: txHash,
+            amountAtomic: verifiedIntent?.amountAtomic,
+            feeAtomic: verifiedIntent?.feeAtomic,
+            netAtomic: verifiedIntent?.netAtomic,
           },
         }),
         prisma.transaction.create({
@@ -198,9 +190,14 @@ export async function POST(
             counterpartyWallet: ownerWallet || undefined,
             description: `Unlock: ${burnLink.title || slug}`,
             txHash: `${txHash}-out`,
+            settlementTxHash: txHash,
+            amountAtomic: verifiedIntent?.amountAtomic,
+            feeAtomic: verifiedIntent?.feeAtomic,
+            netAtomic: verifiedIntent ? `-${verifiedIntent.amountAtomic}` : undefined,
           },
         }),
       ]);
+      if (intentId) await completePaymentIntent(intentId, txHash);
     }
 
     await prisma.burnLink.update({

@@ -6,6 +6,7 @@ import { PLATFORM_FEE_BPS } from "@/lib/constants";
 import { normalizeAptosAddress, parseWalletList } from "@/lib/wallet-access";
 import { createAssetFromBurnLink } from "@/lib/v2/assets";
 import { encryptionFieldsForDb, type EncryptionMaterial } from "@/lib/encryption";
+import { inspectShelbyBlob, STORAGE_SALE_SAFETY_MS } from "@/lib/shelby-lifecycle";
 
 export async function POST(request: Request) {
   const user = await getSessionUser();
@@ -59,7 +60,7 @@ export async function POST(request: Request) {
       }
       thumbnailRef = body.thumbnailRef || undefined;
 
-      // Client-side encryption package (wrapped keys only — never raw content key)
+      // Client-side encryption package (wrapped keys only - never raw content key)
       if (body.encryption?.isEncrypted) {
         encryption = {
           isEncrypted: true,
@@ -103,6 +104,19 @@ export async function POST(request: Request) {
     if (!blobRef) {
       return NextResponse.json({ error: "Shelby blob reference required" }, { status: 400 });
     }
+
+    const storage = await inspectShelbyBlob(blobRef);
+    if (
+      !storage.available ||
+      (storage.expiresAt && storage.expiresAt.getTime() <= Date.now() + STORAGE_SALE_SAFETY_MS)
+    ) {
+      return NextResponse.json(
+        { error: "Shelby storage must be committed with at least 72 hours remaining" },
+        { status: 409 }
+      );
+    }
+    // The catalog may not promise access beyond the authoritative Shelby expiry.
+    if (storage.expiresAt) expiresAt = !expiresAt || expiresAt > storage.expiresAt ? storage.expiresAt : expiresAt;
 
     const encFields = encryptionFieldsForDb(encryption);
 
@@ -199,9 +213,8 @@ export async function GET(request: Request) {
   // Never expose key material on public BurnLink metadata
   const { file, ...rest } = burnLink;
   const safeFile = file
-    ? {
+      ? {
         id: file.id,
-        blobId: file.blobId,
         fileName: file.fileName,
         mimeType: file.mimeType,
         fileSize: file.fileSize,

@@ -4,8 +4,15 @@ import { prisma } from "@/lib/db";
 import { verifyAptPayment, normalizeAddress } from "@/lib/payments";
 import { PLATFORM_ADDRESS, TxType, VERIFICATION_COST_APT } from "@/lib/constants";
 import { createNotification } from "@/lib/notifications";
+import { legacyMarketplacePaymentsEnabled } from "@/lib/payment-policy";
 
 export async function POST(request: Request) {
+  if (!legacyMarketplacePaymentsEnabled()) {
+    return NextResponse.json(
+      { error: "Paid verification is paused while Forge migrates settlement to USDC" },
+      { status: 503 }
+    );
+  }
   const user = await getSessionUser();
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

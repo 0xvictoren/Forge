@@ -1,204 +1,289 @@
-/// Forge — Web3 Creator Platform on Aptos ShelbyNet
-/// Native APT payments: verification, tips, subscriptions, platform fee
+/// Forge marketplace settlement for Aptos ShelbyNet.
+/// Every paid grant is tied to a server-issued intent, immutable product/version
+/// identifiers, and a one-time nonce. Amounts are always integer octas.
 module forge::forge {
     use std::signer;
     use std::vector;
-    use std::string::String;
     use aptos_framework::aptos_account;
     use aptos_framework::event;
     use aptos_framework::timestamp;
+    use aptos_std::table::{Self, Table};
 
-    // ─── Errors ───────────────────────────────────────────────────────────────
+    #[test_only]
+    use aptos_framework::aptos_coin::{Self, AptosCoin};
+    #[test_only]
+    use aptos_framework::coin;
 
     const E_ALREADY_INITIALIZED: u64 = 1;
     const E_NOT_INITIALIZED: u64 = 2;
     const E_ZERO_AMOUNT: u64 = 3;
-    const E_INVALID_TIER: u64 = 4;
+    const E_INVALID_FEE: u64 = 4;
+    const E_EMPTY_IDENTIFIER: u64 = 5;
+    const E_NONCE_ALREADY_USED: u64 = 6;
+    const E_INTENT_EXPIRED: u64 = 7;
+    const E_SELF_PURCHASE: u64 = 8;
+    const E_NOT_MODULE_ADMIN: u64 = 9;
 
-    // ─── Constants ──────────────────────────────────────────────────────────────
-
-    const SUBSCRIPTION_DURATION_SECS: u64 = 2592000; // 30 days
-
-    // ─── Events ─────────────────────────────────────────────────────────────────
-
-    #[event]
-    struct CreatorVerified has drop, store {
-        creator: address,
-        tx_hash: vector<u8>,
-    }
+    const BPS_DENOMINATOR: u64 = 10_000;
+    const PLATFORM_FEE_BPS: u64 = 500;
 
     #[event]
-    struct TipSent has drop, store {
-        from: address,
-        to: address,
-        amount: u64,
-    }
-
-    #[event]
-    struct SubscriptionCreated has drop, store {
-        subscriber: address,
-        creator: address,
-        tier_index: u64,
-        expires_at: u64,
-    }
-
-    #[event]
-    struct BurnLinkPurchased has drop, store {
+    struct PaymentSettled has drop, store {
         buyer: address,
-        creator: address,
-        amount: u64,
+        seller: address,
+        treasury: address,
+        amount_octas: u64,
+        fee_octas: u64,
+        net_octas: u64,
+        fee_bps: u64,
+        purchase_intent_id: vector<u8>,
+        product_id: vector<u8>,
+        version_id: vector<u8>,
+        nonce: vector<u8>,
+        terms_hash: vector<u8>,
+        intent_expires_at: u64,
     }
-
-    // ─── Structs ────────────────────────────────────────────────────────────────
 
     struct ForgePlatform has key {
         treasury: address,
-        verification_fee: u64,
         platform_fee_bps: u64,
+        used_nonces: Table<vector<u8>, bool>,
     }
-
-    struct Tier has store, copy, drop {
-        name: String,
-        price_apt: u64,
-        description: String,
-    }
-
-    struct CreatorProfile has key {
-        verified: bool,
-        verification_tx: vector<u8>,
-        tiers: vector<Tier>,
-        total_earned: u64,
-    }
-
-    // ─── Init ───────────────────────────────────────────────────────────────────
 
     public entry fun initialize_platform(admin: &signer, treasury: address) {
         let admin_addr = signer::address_of(admin);
-        assert!(!exists<ForgePlatform>(admin_addr), E_ALREADY_INITIALIZED);
+        assert!(admin_addr == @forge, E_NOT_MODULE_ADMIN);
+        assert!(!exists<ForgePlatform>(@forge), E_ALREADY_INITIALIZED);
         move_to(
             admin,
             ForgePlatform {
                 treasury,
-                verification_fee: 1000000000, // 10 APT in octa
-                platform_fee_bps: 500, // 5%
+                platform_fee_bps: PLATFORM_FEE_BPS,
+                used_nonces: table::new(),
             },
         );
     }
 
-    // ─── Verification ───────────────────────────────────────────────────────────
-
-    public entry fun verify_creator(user: &signer, platform_addr: address) acquires ForgePlatform, CreatorProfile {
-        let platform = borrow_global<ForgePlatform>(platform_addr);
-        let fee = platform.verification_fee;
-        assert!(fee > 0, E_ZERO_AMOUNT);
-        aptos_account::transfer(user, platform.treasury, fee);
-
-        let addr = signer::address_of(user);
-        if (!exists<CreatorProfile>(addr)) {
-            move_to(
-                user,
-                CreatorProfile {
-                    verified: true,
-                    verification_tx: vector::empty(),
-                    tiers: vector::empty(),
-                    total_earned: 0,
-                },
-            );
-        } else {
-            let profile = borrow_global_mut<CreatorProfile>(addr);
-            profile.verified = true;
-        };
-
-        event::emit(CreatorVerified { creator: addr, tx_hash: vector::empty() });
-    }
-
-    // ─── Tips ───────────────────────────────────────────────────────────────────
-
-    public entry fun tip_creator(
-        sender: &signer,
-        creator: address,
-        amount: u64,
-        platform_addr: address,
-    ) acquires ForgePlatform, CreatorProfile {
-        assert!(amount > 0, E_ZERO_AMOUNT);
-        let platform = borrow_global<ForgePlatform>(platform_addr);
-        let fee = (amount * platform.platform_fee_bps) / 10000;
-        let to_creator = amount - fee;
-
-        aptos_account::transfer(sender, creator, to_creator);
-        if (fee > 0) {
-            aptos_account::transfer(sender, platform.treasury, fee);
-        };
-
-        if (exists<CreatorProfile>(creator)) {
-            let profile = borrow_global_mut<CreatorProfile>(creator);
-            profile.total_earned = profile.total_earned + to_creator;
-        };
-
-        event::emit(TipSent {
-            from: signer::address_of(sender),
-            to: creator,
-            amount,
-        });
-    }
-
-    // ─── Subscriptions ──────────────────────────────────────────────────────────
-
-    public entry fun subscribe(
-        sender: &signer,
-        creator: address,
-        tier_index: u64,
-        platform_addr: address,
-    ) acquires ForgePlatform, CreatorProfile {
-        assert!(exists<CreatorProfile>(creator), E_NOT_INITIALIZED);
-        let profile = borrow_global<CreatorProfile>(creator);
-        assert!(tier_index < vector::length(&profile.tiers), E_INVALID_TIER);
-        let tier = *vector::borrow(&profile.tiers, tier_index);
-        let amount = tier.price_apt;
-        assert!(amount > 0, E_ZERO_AMOUNT);
-
-        tip_creator(sender, creator, amount, platform_addr);
-
-        let expires = timestamp::now_seconds() + SUBSCRIPTION_DURATION_SECS;
-        event::emit(SubscriptionCreated {
-            subscriber: signer::address_of(sender),
-            creator,
-            tier_index,
-            expires_at: expires,
-        });
-    }
-
-    // ─── BurnLink purchase ──────────────────────────────────────────────────────
-
-    public entry fun purchase_burnlink(
+    /// Settle an exact server-issued purchase intent. The caller is always the
+    /// buyer; the module address pins both configuration and fee percentage.
+    public entry fun settle_purchase(
         buyer: &signer,
-        creator: address,
-        amount: u64,
-        platform_addr: address,
-    ) acquires ForgePlatform, CreatorProfile {
-        assert!(amount > 0, E_ZERO_AMOUNT);
-        tip_creator(buyer, creator, amount, platform_addr);
-        event::emit(BurnLinkPurchased {
-            buyer: signer::address_of(buyer),
-            creator,
-            amount,
+        seller: address,
+        amount_octas: u64,
+        purchase_intent_id: vector<u8>,
+        product_id: vector<u8>,
+        version_id: vector<u8>,
+        nonce: vector<u8>,
+        terms_hash: vector<u8>,
+        intent_expires_at: u64,
+    ) acquires ForgePlatform {
+        assert!(exists<ForgePlatform>(@forge), E_NOT_INITIALIZED);
+        assert!(amount_octas > 0, E_ZERO_AMOUNT);
+        assert!(vector::length(&purchase_intent_id) > 0, E_EMPTY_IDENTIFIER);
+        assert!(vector::length(&product_id) > 0, E_EMPTY_IDENTIFIER);
+        assert!(vector::length(&version_id) > 0, E_EMPTY_IDENTIFIER);
+        assert!(vector::length(&nonce) > 0, E_EMPTY_IDENTIFIER);
+        assert!(vector::length(&terms_hash) == 32, E_EMPTY_IDENTIFIER);
+        assert!(timestamp::now_seconds() <= intent_expires_at, E_INTENT_EXPIRED);
+
+        let buyer_addr = signer::address_of(buyer);
+        assert!(buyer_addr != seller, E_SELF_PURCHASE);
+
+        let platform = borrow_global_mut<ForgePlatform>(@forge);
+        assert!(platform.platform_fee_bps < BPS_DENOMINATOR, E_INVALID_FEE);
+        assert!(!table::contains(&platform.used_nonces, nonce), E_NONCE_ALREADY_USED);
+        table::add(&mut platform.used_nonces, nonce, true);
+
+        let fee_octas = fee_for(amount_octas, platform.platform_fee_bps);
+        let net_octas = amount_octas - fee_octas;
+
+        aptos_account::transfer(buyer, seller, net_octas);
+        if (fee_octas > 0) {
+            aptos_account::transfer(buyer, platform.treasury, fee_octas);
+        };
+
+        event::emit(PaymentSettled {
+            buyer: buyer_addr,
+            seller,
+            treasury: platform.treasury,
+            amount_octas,
+            fee_octas,
+            net_octas,
+            fee_bps: platform.platform_fee_bps,
+            purchase_intent_id,
+            product_id,
+            version_id,
+            nonce,
+            terms_hash,
+            intent_expires_at,
         });
     }
 
-    // ─── View functions ─────────────────────────────────────────────────────────
+    #[event]
+    struct ProvenanceAnchored has drop, store {
+        owner: address,
+        dataset_id: vector<u8>,
+        version_number: u64,
+        manifest_hash: vector<u8>,
+        datasheet_hash: vector<u8>,
+        seal_hash: vector<u8>,
+        anchored_at: u64,
+    }
 
-    #[view]
-    public fun is_verified(creator: address): bool acquires CreatorProfile {
-        exists<CreatorProfile>(creator) && borrow_global<CreatorProfile>(creator).verified
+    /// Anchor a dataset version's provenance seal. Stateless: the event and the
+    /// signer are the evidence, so anyone can verify who sealed what, and when.
+    public entry fun anchor_provenance(
+        owner: &signer,
+        dataset_id: vector<u8>,
+        version_number: u64,
+        manifest_hash: vector<u8>,
+        datasheet_hash: vector<u8>,
+        seal_hash: vector<u8>,
+    ) {
+        assert!(vector::length(&dataset_id) > 0, E_EMPTY_IDENTIFIER);
+        assert!(version_number > 0, E_EMPTY_IDENTIFIER);
+        assert!(vector::length(&manifest_hash) == 32, E_EMPTY_IDENTIFIER);
+        assert!(vector::length(&datasheet_hash) == 32, E_EMPTY_IDENTIFIER);
+        assert!(vector::length(&seal_hash) == 32, E_EMPTY_IDENTIFIER);
+        event::emit(ProvenanceAnchored {
+            owner: signer::address_of(owner),
+            dataset_id,
+            version_number,
+            manifest_hash,
+            datasheet_hash,
+            seal_hash,
+            anchored_at: timestamp::now_seconds(),
+        });
+    }
+
+    fun fee_for(amount_octas: u64, fee_bps: u64): u64 {
+        assert!(fee_bps < BPS_DENOMINATOR, E_INVALID_FEE);
+        (amount_octas * fee_bps) / BPS_DENOMINATOR
     }
 
     #[view]
-    public fun verification_fee(platform_addr: address): u64 acquires ForgePlatform {
-        borrow_global<ForgePlatform>(platform_addr).verification_fee
+    public fun platform_fee_bps(): u64 acquires ForgePlatform {
+        borrow_global<ForgePlatform>(@forge).platform_fee_bps
     }
 
     #[view]
-    public fun platform_treasury(platform_addr: address): address acquires ForgePlatform {
-        borrow_global<ForgePlatform>(platform_addr).treasury
+    public fun platform_treasury(): address acquires ForgePlatform {
+        borrow_global<ForgePlatform>(@forge).treasury
+    }
+
+    #[view]
+    public fun nonce_used(nonce: vector<u8>): bool acquires ForgePlatform {
+        table::contains(&borrow_global<ForgePlatform>(@forge).used_nonces, nonce)
+    }
+
+    #[test]
+    fun fee_is_exactly_five_percent() {
+        assert!(fee_for(100_000_000, PLATFORM_FEE_BPS) == 5_000_000, 100);
+        assert!(fee_for(1, PLATFORM_FEE_BPS) == 0, 101);
+    }
+
+    #[test]
+    #[expected_failure(abort_code = E_INVALID_FEE, location = Self)]
+    fun rejects_invalid_fee() {
+        fee_for(100, BPS_DENOMINATOR);
+    }
+
+    #[test(core = @0x1, admin = @forge, buyer = @0xb0b, seller = @0xbeef, treasury = @0xfee)]
+    fun settles_and_splits_payment(
+        core: &signer,
+        admin: &signer,
+        buyer: &signer,
+        seller: &signer,
+        treasury: &signer,
+    ) acquires ForgePlatform {
+        timestamp::set_time_has_started_for_testing(core);
+        let (burn_cap, mint_cap) = aptos_coin::initialize_for_test(core);
+        aptos_account::create_account(signer::address_of(buyer));
+        aptos_account::create_account(signer::address_of(seller));
+        aptos_account::create_account(signer::address_of(treasury));
+        coin::deposit(signer::address_of(buyer), coin::mint(10_000, &mint_cap));
+        initialize_platform(admin, signer::address_of(treasury));
+
+        settle_purchase(
+            buyer,
+            signer::address_of(seller),
+            1_000,
+            b"intent-1",
+            b"product-1",
+            b"version-1",
+            b"nonce-1",
+            x"0000000000000000000000000000000000000000000000000000000000000001",
+            100,
+        );
+
+        assert!(coin::balance<AptosCoin>(signer::address_of(seller)) == 950, 110);
+        assert!(coin::balance<AptosCoin>(signer::address_of(treasury)) == 50, 111);
+        assert!(nonce_used(b"nonce-1"), 112);
+        coin::destroy_burn_cap(burn_cap);
+        coin::destroy_mint_cap(mint_cap);
+    }
+
+    #[test(core = @0x1, admin = @forge, buyer = @0xb0b, seller = @0xbeef, treasury = @0xfee)]
+    #[expected_failure(abort_code = E_NONCE_ALREADY_USED, location = Self)]
+    fun rejects_nonce_replay(
+        core: &signer,
+        admin: &signer,
+        buyer: &signer,
+        seller: &signer,
+        treasury: &signer,
+    ) acquires ForgePlatform {
+        timestamp::set_time_has_started_for_testing(core);
+        let (burn_cap, mint_cap) = aptos_coin::initialize_for_test(core);
+        aptos_account::create_account(signer::address_of(buyer));
+        aptos_account::create_account(signer::address_of(seller));
+        aptos_account::create_account(signer::address_of(treasury));
+        coin::deposit(signer::address_of(buyer), coin::mint(10_000, &mint_cap));
+        initialize_platform(admin, signer::address_of(treasury));
+        settle_purchase(
+            buyer, signer::address_of(seller), 1_000, b"intent-1", b"product-1",
+            b"version-1", b"same-nonce",
+            x"0000000000000000000000000000000000000000000000000000000000000001", 100,
+        );
+        settle_purchase(
+            buyer, signer::address_of(seller), 1_000, b"intent-2", b"product-1",
+            b"version-1", b"same-nonce",
+            x"0000000000000000000000000000000000000000000000000000000000000002", 100,
+        );
+        // Unreachable (the second settlement aborts) but capabilities can't be dropped.
+        coin::destroy_burn_cap(burn_cap);
+        coin::destroy_mint_cap(mint_cap);
+    }
+
+    #[test(core = @0x1, owner = @0xda7a)]
+    fun anchors_provenance(core: &signer, owner: &signer) {
+        timestamp::set_time_has_started_for_testing(core);
+        anchor_provenance(
+            owner,
+            b"dataset-1",
+            1,
+            x"0000000000000000000000000000000000000000000000000000000000000001",
+            x"0000000000000000000000000000000000000000000000000000000000000002",
+            x"0000000000000000000000000000000000000000000000000000000000000003",
+        );
+    }
+
+    #[test(core = @0x1, owner = @0xda7a)]
+    #[expected_failure(abort_code = E_EMPTY_IDENTIFIER, location = Self)]
+    fun rejects_short_seal_hash(core: &signer, owner: &signer) {
+        timestamp::set_time_has_started_for_testing(core);
+        anchor_provenance(
+            owner,
+            b"dataset-1",
+            1,
+            x"0000000000000000000000000000000000000000000000000000000000000001",
+            x"0000000000000000000000000000000000000000000000000000000000000002",
+            x"03",
+        );
+    }
+
+    #[test(rogue = @0x123, treasury = @0xfee)]
+    #[expected_failure(abort_code = E_NOT_MODULE_ADMIN, location = Self)]
+    fun rejects_unauthorized_initialization(rogue: &signer, treasury: &signer) {
+        initialize_platform(rogue, signer::address_of(treasury));
     }
 }

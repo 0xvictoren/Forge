@@ -5,6 +5,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useAptTransfer } from "@/lib/use-apt-transfer";
 import { formatApt } from "@/lib/utils";
 import { Check } from "lucide-react";
+import { LEGACY_MARKETPLACE_PAYMENTS_ENABLED } from "@/lib/payment-policy";
 
 export interface Tier {
   id: string;
@@ -39,6 +40,11 @@ export function SubscribeModal({
   if (!tier) return null;
 
   const subscribe = async () => {
+    if (!LEGACY_MARKETPLACE_PAYMENTS_ENABLED) {
+      setError("Subscriptions are paused while Forge migrates settlement to USDC");
+      setStatus("error");
+      return;
+    }
     setStatus("loading");
     setError("");
     try {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { uploadVideoToStream } from "@/lib/shelby-media-upload";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 /**
  * POST /api/upload/stream
@@ -25,13 +26,13 @@ export async function POST(req: NextRequest) {
     // 1. Early size check using Content-Length header (before consuming body)
     // This prevents large video uploads from triggering framework-level body size errors
     // that return non-JSON responses (which cause "Unexpected end of JSON input" on client .json()).
-    const MAX_SIZE = 500 * 1024 * 1024;
+    const MAX_SIZE = 25 * 1024 * 1024;
     const contentLength = Number(req.headers.get("content-length") || 0);
     if (contentLength > MAX_SIZE) {
       return NextResponse.json(
         {
           error: "Video too large",
-          details: `Maximum allowed size is 500MB. Received ${(contentLength / 1024 / 1024).toFixed(1)}MB`,
+          details: `Direct server uploads are limited to 25MB. Use the wallet or multipart upload flow for larger files. Received ${(contentLength / 1024 / 1024).toFixed(1)}MB`,
         },
         { status: 413 }
       );
@@ -43,6 +44,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: "Unauthorized", details: "You must be logged in to upload streams." },
         { status: 401 }
+      );
+    }
+
+    const rate = checkRateLimit(`stream-upload:${user.id}`, {
+      limit: 10,
+      windowMs: 60 * 60 * 1_000,
+    });
+    if (!rate.allowed) {
+      return NextResponse.json(
+        { error: "Upload limit reached" },
+        { status: 429, headers: { "Retry-After": String(rate.retryAfterSeconds) } }
       );
     }
 
@@ -90,7 +102,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           error: "Video too large",
-          details: `Maximum allowed size is 500MB. Received ${(file.size / 1024 / 1024).toFixed(1)}MB`,
+          details: `Direct server uploads are limited to 25MB. Use the wallet or multipart upload flow for larger files. Received ${(file.size / 1024 / 1024).toFixed(1)}MB`,
         },
         { status: 413 }
       );

@@ -32,7 +32,7 @@ export function assertGrantWallet(
 ): { ok: true } | { ok: false; error: string; status: number } {
   try {
     if (normalizeAptosAddress(grant.walletAddress) !== normalizeAptosAddress(walletAddress)) {
-      return { ok: false, error: "Access denied — wallet mismatch", status: 403 };
+      return { ok: false, error: "Access denied, wallet mismatch", status: 403 };
     }
   } catch {
     return { ok: false, error: "Invalid wallet address", status: 400 };
@@ -61,6 +61,44 @@ export function assertViewLimits(
   }
 
   return { ok: true };
+}
+
+/** Atomically consume one view so concurrent requests cannot exceed limits. */
+export async function consumeGrantView(
+  burnLink: BurnLink,
+  grant: AccessGrant
+): Promise<
+  | { ok: true; grant: AccessGrant }
+  | { ok: false; error: string; status: number }
+> {
+  const limits = assertViewLimits(burnLink, grant);
+  if (!limits.ok) return limits;
+
+  const singleUse = burnLink.burnAfterRead || burnLink.oneTime;
+  const maximum = singleUse ? 1 : burnLink.maxViews;
+  const updated = await prisma.accessGrant.updateMany({
+    where: {
+      id: grant.id,
+      ...(maximum != null ? { viewsUsed: { lt: maximum } } : {}),
+    },
+    data: { viewsUsed: { increment: 1 } },
+  });
+
+  if (updated.count !== 1) {
+    return {
+      ok: false,
+      error: singleUse ? "This file has been consumed" : "Max views exceeded",
+      status: 403,
+    };
+  }
+
+  const consumedGrant = await prisma.accessGrant.findUnique({
+    where: { id: grant.id },
+  });
+  if (!consumedGrant) {
+    return { ok: false, error: "Access denied", status: 403 };
+  }
+  return { ok: true, grant: consumedGrant };
 }
 
 /** Whether media for this BurnLink must use signed proxy URLs. */
@@ -132,8 +170,9 @@ export async function validateSignedMediaRequest(params: {
   const gateCheck = assertWalletGate(grant.burnLink, params.wallet);
   if (!gateCheck.ok) return gateCheck;
 
-  const limits = assertViewLimits(grant.burnLink, grant);
-  if (!limits.ok) return limits;
+  if (grant.burnLink.expiresAt && grant.burnLink.expiresAt.getTime() < Date.now()) {
+    return { ok: false, error: "This link has expired", status: 410 };
+  }
 
   return { ok: true, grant, burnLink: grant.burnLink };
 }

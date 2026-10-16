@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db";
 import { inferAssetType } from "./constants";
 
-/** Stub AI pipeline — extracts basic metadata from file info. */
+/** Stub AI pipeline - extracts basic metadata from file info. */
 export async function processAssetMetadata(assetId: string) {
   const asset = await prisma.asset.findUnique({ where: { id: assetId } });
   if (!asset) return null;
@@ -16,7 +16,7 @@ export async function processAssetMetadata(assetId: string) {
 
   const summary =
     asset.description ||
-    `${asset.title} — ${assetType} digital asset on Forge.`;
+    `${asset.title}, ${assetType} digital asset on Forge.`;
 
   const suggestedCategory =
     asset.category ||

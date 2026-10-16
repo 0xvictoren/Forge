@@ -1,7 +1,8 @@
 import "server-only";
-import { SignJWT, jwtVerify } from "jose";
+import { EncryptJWT, SignJWT, jwtDecrypt, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { getAppUrl, getGoogleOAuthCallbackUrl } from "@/lib/app-url";
+import { createHash } from "crypto";
 
 export { getAppUrl } from "@/lib/app-url";
 
@@ -21,6 +22,10 @@ function getSecret() {
   const secret = process.env.JWT_SECRET;
   if (!secret) throw new Error("JWT_SECRET is not set");
   return new TextEncoder().encode(secret);
+}
+
+function getEncryptionKey() {
+  return createHash("sha256").update(getSecret()).digest();
 }
 
 export function isGoogleOAuthConfigured(): boolean {
@@ -44,7 +49,7 @@ export async function setOAuthState(state: string, provider: OAuthProvider) {
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     maxAge: 600,
-    path: "/",
+    path: "/api/import",
   });
 }
 
@@ -66,16 +71,16 @@ export async function verifyOAuthState(
 
 export async function storeOAuthTokens(provider: OAuthProvider, tokens: Omit<OAuthTokens, "provider">) {
   const cookieStore = await cookies();
-  const token = await new SignJWT({ ...tokens, provider })
-    .setProtectedHeader({ alg: "HS256" })
+  const token = await new EncryptJWT({ ...tokens, provider })
+    .setProtectedHeader({ alg: "dir", enc: "A256GCM" })
     .setExpirationTime("7d")
-    .sign(getSecret());
+    .encrypt(getEncryptionKey());
   cookieStore.set(`${COOKIE_PREFIX}${provider}`, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     maxAge: 7 * 24 * 3600,
-    path: "/",
+    path: "/api/import",
   });
 }
 
@@ -84,7 +89,7 @@ export async function getOAuthTokens(provider: OAuthProvider): Promise<OAuthToke
   const raw = cookieStore.get(`${COOKIE_PREFIX}${provider}`)?.value;
   if (!raw) return null;
   try {
-    const { payload } = await jwtVerify(raw, getSecret());
+    const { payload } = await jwtDecrypt(raw, getEncryptionKey());
     return payload as unknown as OAuthTokens;
   } catch {
     return null;
@@ -93,14 +98,20 @@ export async function getOAuthTokens(provider: OAuthProvider): Promise<OAuthToke
 
 export async function clearOAuthTokens(provider: OAuthProvider) {
   const cookieStore = await cookies();
-  cookieStore.delete(`${COOKIE_PREFIX}${provider}`);
+  cookieStore.set(`${COOKIE_PREFIX}${provider}`, "", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: 0,
+    path: "/api/import",
+  });
 }
 
 /* ─── Google Drive ─────────────────────────────────────────────────────────── */
 
 export function getGoogleAuthUrl(state: string): string {
   if (!isGoogleOAuthConfigured()) {
-    throw new Error("Google OAuth not configured — set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET");
+    throw new Error("Google OAuth not configured, set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET");
   }
   const clientId = process.env.GOOGLE_CLIENT_ID!.trim();
 
@@ -119,7 +130,7 @@ export function getGoogleAuthUrl(state: string): string {
 
 export async function exchangeGoogleCode(code: string) {
   if (!isGoogleOAuthConfigured()) {
-    throw new Error("Google OAuth not configured — set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET");
+    throw new Error("Google OAuth not configured, set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET");
   }
   const clientId = process.env.GOOGLE_CLIENT_ID!.trim();
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET!.trim();
@@ -146,7 +157,7 @@ export async function exchangeGoogleCode(code: string) {
 
 export async function refreshGoogleToken(refreshToken: string) {
   if (!isGoogleOAuthConfigured()) {
-    throw new Error("Google OAuth not configured — set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET");
+    throw new Error("Google OAuth not configured, set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET");
   }
   const clientId = process.env.GOOGLE_CLIENT_ID!.trim();
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET!.trim();

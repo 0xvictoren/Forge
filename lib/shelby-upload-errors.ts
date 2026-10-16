@@ -9,7 +9,7 @@ export function formatShelbyUploadError(message: string): string {
     return "Insufficient APT in your connected wallet. Add a small amount of APT and approve the Shelby registration transaction.";
   }
   if (lower.includes("shelby_signer_private_key") || lower.includes("not configured")) {
-    return "Connect your wallet to upload — your wallet pays the Shelby registration fee.";
+    return "Connect your wallet to upload, your wallet pays the Shelby registration fee.";
   }
   if (lower.includes("user rejected") || lower.includes("rejected the")) {
     return "Transaction cancelled in wallet.";

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { redactSensitiveResponse } from "@/lib/security-response";
 
 export async function GET(request: Request) {
   const user = await getSessionUser();
@@ -43,7 +44,7 @@ export async function GET(request: Request) {
     const isLiked = await prisma.streamLike.findFirst({ where: { assetId: v.id, userId: user.id } });
     const isPaid = v.streamPriceApt > 0 ? await prisma.purchase.findFirst({ where: { buyerId: user.id, assetId: v.id } }) : true;
     return {
-      ...v,
+      ...redactSensitiveResponse(v, { redactStorageReferences: !isPaid && v.userId !== user.id }),
       likeCount,
       commentCount,
       isLiked: !!isLiked,

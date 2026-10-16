@@ -171,7 +171,7 @@ export default function BurnLinkViewer() {
     <div className="relative min-h-screen bg-[#d4d4d4] p-6">
       {blurred && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-xl">
-          <p className="text-white">Content hidden — return to tab</p>
+          <p className="text-white">Content hidden, return to tab</p>
         </div>
       )}
 
@@ -198,7 +198,7 @@ export default function BurnLinkViewer() {
         <div className="border-b bg-gray-50 p-6 text-sm">
           <div className="flex items-center justify-between">
             <p className="font-medium text-orange-600">
-              Expires in {burnlink.expiresIn || "—"}
+              Expires in {burnlink.expiresIn || "None"}
             </p>
             <div className="flex items-center gap-4 text-gray-500">
               <div className="flex items-center gap-1">

@@ -42,13 +42,13 @@ export default async function CertificatePage({
             <div>
               <dt className="text-[var(--text-muted)]">Buyer</dt>
               <dd>
-                {certificate.buyer.displayName || certificate.buyer.username || "—"}
+                {certificate.buyer.displayName || certificate.buyer.username || "None"}
               </dd>
             </div>
             <div>
               <dt className="text-[var(--text-muted)]">Seller</dt>
               <dd>
-                {certificate.seller.displayName || certificate.seller.username || "—"}
+                {certificate.seller.displayName || certificate.seller.username || "None"}
               </dd>
             </div>
             <div>

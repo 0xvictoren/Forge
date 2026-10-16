@@ -43,7 +43,7 @@ export function ShareBurnLink({
     <div className="rounded-xl border border-[var(--border-dim)] bg-[var(--bg-subtle)] p-4">
       <p className="text-sm font-semibold">Shareable link</p>
       <p className="mt-1 text-xs text-[var(--text-secondary)]">
-        Send to clients or DMs — no Forge account required to open.
+        Send to clients or DMs, no Forge account required to open.
       </p>
       <div className="mt-3 break-all rounded-lg bg-[var(--bg-elevated)] p-3 font-mono text-xs">
         {shareUrl}

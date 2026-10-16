@@ -5,7 +5,7 @@
  * Ciphertext format: IV (12 bytes) || ciphertext || authTag (16 bytes, appended by GCM)
  *
  * Key model:
- * 1. Per-file random content key (256-bit) — encrypts the media
+ * 1. Per-file random content key (256-bit) - encrypts the media
  * 2. Owner wrap: content key encrypted with a wallet-derived AES key
  *    (deterministic message signature → HKDF-SHA-256 → AES-256)
  * 3. Share wrap: content key encrypted with a random share secret
@@ -21,7 +21,7 @@ export const AES_KEY_BITS = 256;
 export const AES_IV_BYTES = 12;
 export const CONTENT_KEY_BYTES = 32;
 
-/** Fixed derivation message — must stay stable so owners can re-derive the same key. */
+/** Fixed derivation message - must stay stable so owners can re-derive the same key. */
 export const FORGE_KEY_DERIVATION_MESSAGE =
   "Forge Content Encryption Key v1 — this signature never broadcasts and is only used to derive your local decryption key.";
 
@@ -72,7 +72,7 @@ export type EncryptFileResult = {
   /** Ciphertext file (application/octet-stream) ready for Shelby upload */
   encryptedFile: File;
   material: EncryptionMaterial;
-  /** Raw content key — keep in memory only; never send to server */
+  /** Raw content key - keep in memory only; never send to server */
   contentKey: Uint8Array;
 };
 
@@ -251,7 +251,7 @@ export async function decryptAesGcm(
     payload instanceof Uint8Array ? payload : new Uint8Array(payload);
 
   if (bytes.length < AES_IV_BYTES + 16) {
-    throw new Error("Ciphertext too short — not valid AES-GCM payload");
+    throw new Error("Ciphertext too short, not valid AES-GCM payload");
   }
   if (rawKey.length !== CONTENT_KEY_BYTES) {
     throw new Error(`AES-256 key must be ${CONTENT_KEY_BYTES} bytes`);
@@ -270,7 +270,7 @@ export async function decryptAesGcm(
     return new Uint8Array(pt);
   } catch {
     throw new Error(
-      "Decryption failed — wrong key, corrupted ciphertext, or unauthorized access"
+      "Decryption failed, wrong key, corrupted ciphertext, or unauthorized access"
     );
   }
 }
@@ -438,7 +438,7 @@ export async function resolveContentKey(
 
   const tryShare = async () => {
     if (!pkg.wrappedKeyShare || !pkg.encryptionShareKey) {
-      throw new Error("Share key material unavailable — unlock may not be authorized");
+      throw new Error("Share key material unavailable, unlock may not be authorized");
     }
     const shareKey = base64ToBytes(pkg.encryptionShareKey);
     return unwrapKey(pkg.wrappedKeyShare, shareKey);

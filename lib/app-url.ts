@@ -23,7 +23,7 @@ export function getAppUrl(): string {
   return fromEnv?.replace(/\/+$/, "") || "http://localhost:3000";
 }
 
-/** Google OAuth redirect — must match Google Cloud Console exactly. */
+/** Google OAuth redirect - must match Google Cloud Console exactly. */
 export function getGoogleOAuthCallbackUrl(): string {
   const override = process.env.GOOGLE_REDIRECT_URI?.trim();
   if (override) return override.replace(/\/+$/, "");

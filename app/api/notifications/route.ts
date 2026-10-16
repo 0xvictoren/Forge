@@ -75,7 +75,7 @@ export async function GET() {
       id: `sub-${s.id}`,
       type: "SUBSCRIBE",
       title: "New subscriber",
-      body: `${s.subscriber.displayName || s.subscriber.username} — ${s.tier.name}`,
+      body: `${s.subscriber.displayName || s.subscriber.username}, ${s.tier.name}`,
       href: "/dashboard",
       read: false,
       createdAt: s.createdAt.toISOString(),

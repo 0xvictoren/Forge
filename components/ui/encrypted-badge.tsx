@@ -20,7 +20,7 @@ export function EncryptedBadge({
   return (
     <span
       className={`inline-flex items-center gap-1 rounded-full border border-emerald-500/40 bg-emerald-500/10 font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-400 ${pad} ${className}`}
-      title="AES-256-GCM client-side encryption — ciphertext only on Shelby"
+      title="AES-256-GCM client-side encryption, ciphertext only on Shelby"
     >
       <Lock className={icon} aria-hidden />
       {label}

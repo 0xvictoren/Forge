@@ -18,8 +18,12 @@ export function getPusherClient() {
   if (!key) return null;
   return new PusherClient(key, {
     cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER || "us3",
+    channelAuthorization: {
+      endpoint: "/api/pusher/auth",
+      transport: "ajax",
+    },
   });
 }
 
-export const conversationChannel = (id: string) => `conversation-${id}`;
-export const userChannel = (userId: string) => `user-${userId}`;
+export const conversationChannel = (id: string) => `private-conversation-${id}`;
+export const userChannel = (userId: string) => `private-user-${userId}`;

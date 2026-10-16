@@ -13,10 +13,18 @@ if (Test-Path $EnvFile) {
   }
 }
 
-$Deployer = if ($env:DEPLOYER_ADDRESS) { $env:DEPLOYER_ADDRESS } else { "0x8e9918d910feda3733f078af8fcf17e4a07eed9e255f4261779ca1ba55c642b6" }
+$Deployer = $env:FORGE_DEPLOYER_ADDRESS
 $NodeUrl = if ($env:APTOS_NODE_URL) { $env:APTOS_NODE_URL } else { "https://api.shelbynet.shelby.xyz/v1" }
 $Pk = $env:SHELBY_SIGNER_PRIVATE_KEY
-$Treasury = if ($env:NEXT_PUBLIC_PLATFORM_ADDRESS) { $env:NEXT_PUBLIC_PLATFORM_ADDRESS } else { $Deployer }
+$Treasury = $env:FORGE_TREASURY_ADDRESS
+
+if (-not $Deployer -or -not $Treasury) {
+  Write-Error "Set FORGE_DEPLOYER_ADDRESS and FORGE_TREASURY_ADDRESS explicitly. Deployment has no address defaults."
+}
+$ExpectedConfirmation = "${Deployer}:${Treasury}"
+if ($env:CONFIRM_FORGE_DEPLOYMENT -ne $ExpectedConfirmation) {
+  Write-Error "Set CONFIRM_FORGE_DEPLOYMENT=$ExpectedConfirmation after independently confirming both addresses."
+}
 
 $env:APTOS_CONFIG_DIR = Join-Path $Root ".aptos"
 $MoveDir = Join-Path $Root "move"
@@ -59,3 +67,4 @@ aptos move run `
 
 Pop-Location
 Write-Host "Done. Contract at $Deployer"
+Write-Host "Set NEXT_PUBLIC_CONTRACT_ADDRESS and NEXT_PUBLIC_MODULE_ADDRESS to $Deployer"

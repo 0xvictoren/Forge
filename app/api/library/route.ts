@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { redactSensitiveResponse } from "@/lib/security-response";
 
 export async function GET() {
   const user = await getSessionUser();
@@ -85,7 +86,7 @@ export async function GET() {
 
   const bundles = purchases.filter((p) => p.product?.productType === "BUNDLE");
 
-  return NextResponse.json({
+  return NextResponse.json(redactSensitiveResponse({
     assets,
     ownedAssets,
     purchases,
@@ -98,5 +99,5 @@ export async function GET() {
     transactions: txs,
     activities,
     history: activities.length > 0 ? activities : purchases,
-  });
+  }));
 }

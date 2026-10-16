@@ -5,6 +5,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useAptTransfer } from "@/lib/use-apt-transfer";
 import { formatApt } from "@/lib/utils";
 import { Check } from "lucide-react";
+import { LEGACY_MARKETPLACE_PAYMENTS_ENABLED } from "@/lib/payment-policy";
 
 const PRESETS = [0.1, 0.5, 1, 5];
 
@@ -29,6 +30,11 @@ export function TipModal({
 
   const sendTip = async () => {
     if (amount <= 0) return;
+    if (!LEGACY_MARKETPLACE_PAYMENTS_ENABLED) {
+      setError("Tips are paused while Forge migrates settlement to USDC");
+      setStatus("error");
+      return;
+    }
     setStatus("loading");
     setError("");
     try {

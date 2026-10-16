@@ -32,7 +32,7 @@ export function LandingHero() {
 
               <p className="mt-6 max-w-lg text-[17px] leading-relaxed text-[var(--text-cream)]/90">
                 A Web3 creator platform with wallet-native payments, Shelby-secured files,
-                and instant ownership certificates. No signups — just connect and create.
+                and instant ownership certificates. No signups, just connect and create.
               </p>
 
               <div className="mt-9 flex flex-wrap items-center gap-3">
@@ -85,7 +85,7 @@ export function LandingHero() {
           <span className="font-semibold text-[var(--text-primary)]">
             PDFs, video packs, design systems, code, music, and more
           </span>{" "}
-          — buyers get verifiable ownership with a single APT payment.
+, buyers get verifiable ownership with a single APT payment.
         </div>
       </section>
     </div>

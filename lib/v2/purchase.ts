@@ -1,13 +1,13 @@
 import { prisma } from "@/lib/db";
 import { PLATFORM_FEE_BPS } from "@/lib/constants";
-import { calcFee } from "@/lib/payments";
-import { verifyAptPayment } from "@/lib/payments";
+import { calcFee, octasToApt } from "@/lib/payments";
 import { issueCertificate } from "./certificate";
 import { updateCreatorReputation } from "./reputation";
 import { createNotification } from "@/lib/notifications";
 import { recordAnalyticsEvent } from "@/lib/analytics";
 import { recordLibraryActivity } from "@/lib/library-activity";
 import { revalidatePath } from "next/cache";
+import { completePaymentIntent, consumePaymentIntent } from "@/lib/payment-intents";
 
 export async function completePurchase(input: {
   buyerId: string;
@@ -20,19 +20,46 @@ export async function completePurchase(input: {
   vaultId?: string;
   burnLinkId?: string;
   title: string;
+  settlement?: {
+    id: string;
+    currency: string;
+    amountAtomic: string;
+    feeAtomic: string;
+    netAtomic: string;
+    productIdentifier: string;
+    versionIdentifier: string;
+    nonce: string;
+  };
 }) {
   const existing = await prisma.purchase.findUnique({ where: { txHash: input.txHash } });
   if (existing) return { purchase: existing, certificate: null, duplicate: true };
 
-  const { feeApt, netApt } = calcFee(input.amountApt, PLATFORM_FEE_BPS);
+  const amountApt = input.settlement
+    ? octasToApt(BigInt(input.settlement.amountAtomic))
+    : input.amountApt;
+  const legacyAmounts = calcFee(amountApt, PLATFORM_FEE_BPS);
+  const feeApt = input.settlement
+    ? octasToApt(BigInt(input.settlement.feeAtomic))
+    : legacyAmounts.feeApt;
+  const netApt = input.settlement
+    ? octasToApt(BigInt(input.settlement.netAtomic))
+    : legacyAmounts.netApt;
 
   const purchase = await prisma.purchase.create({
     data: {
       buyerId: input.buyerId,
       sellerId: input.sellerId,
-      amountApt: input.amountApt,
+      amountApt,
       feeApt,
       netApt,
+      currency: input.settlement?.currency || "APT_TESTNET",
+      amountAtomic: input.settlement?.amountAtomic,
+      feeAtomic: input.settlement?.feeAtomic,
+      netAtomic: input.settlement?.netAtomic,
+      paymentIntentId: input.settlement?.id,
+      productIdentifier: input.settlement?.productIdentifier,
+      versionIdentifier: input.settlement?.versionIdentifier,
+      paymentNonce: input.settlement?.nonce,
       txHash: input.txHash,
       purchaseType: input.purchaseType,
       assetId: input.assetId,
@@ -69,7 +96,7 @@ export async function completePurchase(input: {
     userId: input.sellerId,
     type: "PURCHASE",
     title: "New purchase",
-    body: `Someone bought "${input.title}" for ${input.amountApt} APT`,
+    body: `Someone bought "${input.title}" for ${amountApt} APT`,
     href: "/library",
   });
 
@@ -88,7 +115,7 @@ export async function completePurchase(input: {
       assetId: input.assetId,
       productId: input.productId,
       vaultId: input.vaultId,
-      amountApt: input.amountApt,
+      amountApt,
     });
   } catch {
     /* non-fatal */
@@ -102,7 +129,7 @@ export async function completePurchase(input: {
     title: input.title,
     assetId: input.assetId,
     productId: input.productId,
-    amountApt: input.amountApt,
+    amountApt,
   });
   revalidatePath("/library");
 
@@ -113,6 +140,7 @@ export async function verifyAndPurchaseAsset(opts: {
   buyerId: string;
   assetId: string;
   txHash: string;
+  intentId: string;
   walletAddress: string;
 }) {
   const asset = await prisma.asset.findUnique({
@@ -125,16 +153,16 @@ export async function verifyAndPurchaseAsset(opts: {
   const creatorWallet = asset.owner.walletAddress || asset.owner.address;
   if (!creatorWallet) throw new Error("Creator wallet missing");
 
-  const verification = await verifyAptPayment(opts.txHash, {
-    sender: opts.walletAddress,
-    recipient: creatorWallet,
-    minAmountApt: asset.priceApt * 0.99,
+  const intent = await consumePaymentIntent({
+    intentId: opts.intentId,
+    buyerId: opts.buyerId,
+    walletAddress: opts.walletAddress,
+    kind: "ASSET",
+    targetId: asset.id,
+    txHash: opts.txHash,
   });
-  if (!verification.valid) {
-    throw new Error(verification.error || "Payment verification failed");
-  }
 
-  return completePurchase({
+  const result = await completePurchase({
     buyerId: opts.buyerId,
     sellerId: asset.userId,
     amountApt: asset.priceApt,
@@ -142,13 +170,17 @@ export async function verifyAndPurchaseAsset(opts: {
     purchaseType: "ASSET",
     assetId: asset.id,
     title: asset.title,
+    settlement: intent,
   });
+  await completePaymentIntent(opts.intentId, opts.txHash);
+  return result;
 }
 
 export async function verifyAndPurchaseProduct(opts: {
   buyerId: string;
   productId: string;
   txHash: string;
+  intentId: string;
   walletAddress: string;
 }) {
   const product = await prisma.product.findUnique({
@@ -161,16 +193,16 @@ export async function verifyAndPurchaseProduct(opts: {
   const creatorWallet = product.owner.walletAddress || product.owner.address;
   if (!creatorWallet) throw new Error("Creator wallet missing");
 
-  const verification = await verifyAptPayment(opts.txHash, {
-    sender: opts.walletAddress,
-    recipient: creatorWallet,
-    minAmountApt: product.priceApt * 0.99,
+  const intent = await consumePaymentIntent({
+    intentId: opts.intentId,
+    buyerId: opts.buyerId,
+    walletAddress: opts.walletAddress,
+    kind: "PRODUCT",
+    targetId: product.id,
+    txHash: opts.txHash,
   });
-  if (!verification.valid) {
-    throw new Error(verification.error || "Payment verification failed");
-  }
 
-  return completePurchase({
+  const result = await completePurchase({
     buyerId: opts.buyerId,
     sellerId: product.userId,
     amountApt: product.priceApt,
@@ -178,5 +210,8 @@ export async function verifyAndPurchaseProduct(opts: {
     purchaseType: "BUNDLE",
     productId: product.id,
     title: product.title,
+    settlement: intent,
   });
+  await completePaymentIntent(opts.intentId, opts.txHash);
+  return result;
 }

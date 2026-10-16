@@ -50,6 +50,9 @@ export async function GET(request: NextRequest) {
       if (!validated.ok) {
         return NextResponse.json({ error: validated.error }, { status: validated.status });
       }
+      if (!session || validated.grant.userId !== session.id) {
+        return NextResponse.json({ error: "Signed access belongs to another session" }, { status: 403 });
+      }
     } else {
       const assetCheck = await checkAssetBlobAccess(ref);
       if (!assetCheck.ok) {

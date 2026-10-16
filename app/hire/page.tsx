@@ -19,11 +19,11 @@ export default function HirePage() {
             Discover creators on Forge
           </h1>
           <p className="mt-4 text-white/90">
-            Find Web3-native talent with on-chain payments and Shelby-secured deliverables.
+            Find Web3-native talent with onchain payments and Shelby-secured deliverables.
           </p>
           <HireSearch />
           <p className="mt-4 text-xs text-white/80">
-            Pay in APT · 2% platform fee · Shelby storage included
+            Pay with your wallet · 5% platform fee · Shelby storage included
           </p>
         </div>
       </section>
@@ -32,7 +32,7 @@ export default function HirePage() {
         <div className="mx-auto max-w-[1200px] px-4 pt-10 lg:px-8">
           <h2 className="text-2xl font-bold">Discover creators</h2>
           <p className="mt-1 text-sm text-[var(--text-secondary)]">
-            Search by name, skill, or category — follow and hire directly on Forge.
+            Search by name, skill, or category, follow and hire directly on Forge.
           </p>
         </div>
         <HireDiscovery />

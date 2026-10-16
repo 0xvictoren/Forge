@@ -11,7 +11,7 @@ export async function POST() {
   return NextResponse.json(
     {
       error:
-        "Server-side Shelby upload is disabled. Connect your wallet and upload from the app — your wallet pays the registration fee.",
+        "Server-side Shelby upload is disabled. Connect your wallet and upload from the app, your wallet pays the registration fee.",
     },
     { status: 403 }
   );

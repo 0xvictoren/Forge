@@ -12,7 +12,7 @@ declare global {
   var _mongoClientPromise: Promise<MongoClient> | undefined;
 }
 
-/** Shared MongoClient for Vercel serverless (optional — Prisma remains primary ORM). */
+/** Shared MongoClient for Vercel serverless (optional - Prisma remains primary ORM). */
 function createClient(): Promise<MongoClient> {
   if (!uri) {
     return Promise.reject(new Error("MONGODB_URI is not set"));

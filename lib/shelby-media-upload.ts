@@ -9,7 +9,7 @@ import { encodeBlobRef, getShelbyPublicUrl } from "@/lib/shelby-public";
  *
  * This encapsulates:
  * - Server signer lookup + configuration validation
- * - On-chain blob registration, chunkset upload, and commit
+ * - Onchain blob registration, chunkset upload, and commit
  * - Consistent blobRef (shelby:0x...::...) and proxied URL generation
  *
  * Duration is intentionally returned as `null` because accurate video duration
@@ -56,9 +56,9 @@ export async function uploadVideoToStream(
   const baseName = title?.trim() || file.name || "untitled-video";
   const blobName = `streams/${Date.now()}-${sanitizeName(baseName)}`;
 
-  // 1 year default expiration (adjustable via metadata if needed later)
+  // 30-day renewable retention for marketplace content.
   const expirationMicros =
-    Date.now() * 1000 + 365 * 24 * 60 * 60 * 1_000_000;
+    Date.now() * 1000 + 30 * 24 * 60 * 60 * 1_000_000;
 
   try {
     // SDK 0.7+: register → putBlobChunksets → commit_object (overwrite).
@@ -66,7 +66,6 @@ export async function uploadVideoToStream(
       blobData: new Uint8Array(buffer),
       signer,
       blobName,
-      expirationMicros,
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);

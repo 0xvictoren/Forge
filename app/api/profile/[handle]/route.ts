@@ -86,8 +86,8 @@ export async function GET(
       slug: b.slug,
       title: b.title || b.file.fileName,
       mimeType: b.file.mimeType,
-      thumbnailUrl: b.file.mimeType.startsWith("image/")
-        ? getShelbyPublicUrl(b.file.blobId)
+      thumbnailUrl: b.thumbnailRef
+        ? getShelbyPublicUrl(b.thumbnailRef)
         : null,
       viewCount: b.viewCount,
       createdAt: b.createdAt.toISOString(),

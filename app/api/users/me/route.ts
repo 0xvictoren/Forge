@@ -36,7 +36,7 @@ export async function PUT(request: Request) {
 
   if (username) {
     if (!isValidHandleFormat(username)) {
-      return NextResponse.json({ error: "Username must be 3–24 characters (letters, numbers, underscore)" }, { status: 400 });
+      return NextResponse.json({ error: "Username must be 3 to 24 characters (letters, numbers, underscore)" }, { status: 400 });
     }
     if (await isHandleTaken(username, user.id)) {
       return NextResponse.json({ error: "Username taken" }, { status: 409 });

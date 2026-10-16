@@ -76,7 +76,7 @@ export function ProfileSidebar() {
     return (
       <aside className="hidden h-full w-80 shrink-0 overflow-y-auto overscroll-y-contain border-l border-[var(--border-dim)] bg-[var(--bg-elevated)] p-6 xl:block">
         <p className="text-sm text-[var(--text-muted)]">
-          Connect your wallet to upload and share files — profile setup is optional.
+          Connect your wallet to upload and share files, profile setup is optional.
         </p>
         <Link href="/onboarding" className="btn-primary mt-4 block text-center text-sm">
           Set up profile

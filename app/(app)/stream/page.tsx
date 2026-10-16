@@ -10,6 +10,7 @@ import { useAptTransfer } from "@/lib/use-apt-transfer";
 import { formatApt } from "@/lib/utils";
 import { useAppStore } from "@/lib/store";
 import { VideoPlayer } from "@shelby-protocol/player";
+import { LEGACY_MARKETPLACE_PAYMENTS_ENABLED } from "@/lib/payment-policy";
 
 interface StreamVideo {
   id: string;
@@ -141,6 +142,10 @@ export default function StreamPage() {
   };
 
   const payToWatch = async (video: StreamVideo) => {
+    if (!LEGACY_MARKETPLACE_PAYMENTS_ENABLED) {
+      toast.error("Paid streams are paused while Forge migrates settlement to USDC");
+      return;
+    }
     if (!connected || !account) {
       toast.error("Connect your wallet to unlock paid streams");
       return;
@@ -287,7 +292,7 @@ export default function StreamPage() {
               >
                 Unlock with APT
               </button>
-              <div className="mt-3 text-[10px] text-white/50">2% platform fee • instant access after payment</div>
+              <div className="mt-3 text-[10px] text-white/50">5% platform fee • instant access after payment</div>
             </div>
           ) : (
             // Native video for compact grid cards (lightweight). Full Media Kit player used in focused modal.
@@ -448,7 +453,7 @@ export default function StreamPage() {
               </button>
             </div>
 
-            {/* Rich playable video area — using official Shelby Media Kit VideoPlayer */}
+            {/* Rich playable video area - using official Shelby Media Kit VideoPlayer */}
             <div className="relative flex-1 bg-black">
               {selectedVideo.streamPriceApt > 0 && !selectedVideo.isPaid && !isOwner(selectedVideo) ? (
                 <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/95 p-8 text-center">
@@ -459,7 +464,7 @@ export default function StreamPage() {
                     <button onClick={() => payToWatch(selectedVideo)} className="mt-5 w-full rounded-full bg-white py-3 font-semibold text-black">
                       Pay &amp; Unlock
                     </button>
-                    <p className="mt-3 text-xs text-white/50">2% platform fee goes to Forge • instant unlock</p>
+                    <p className="mt-3 text-xs text-white/50">5% platform fee goes to Forge • instant unlock</p>
                   </div>
                 </div>
               ) : (
@@ -550,7 +555,7 @@ export default function StreamPage() {
               <option value="private">Private</option>
             </select>
 
-            <label className="text-xs text-white/60">Price (APT — 0 is free)</label>
+            <label className="text-xs text-white/60">Price (APT, 0 is free)</label>
             <input type="number" step="0.1" min={0} value={editPrice} onChange={(e) => setEditPrice(Math.max(0, Number(e.target.value)))} className="input mb-4 mt-1 w-full" />
 
             <label className="mb-2 flex items-center gap-2 text-sm">

@@ -46,7 +46,7 @@ export async function canUserAccessAsset(
   const isOwner = !!userId && userId === asset.userId;
   if (isOwner) return { canAccess: true, isOwner: true, hasPurchased: false };
 
-  // Free assets only — visibility "public" means discoverable, not free download
+  // Free assets only - visibility "public" means discoverable, not free download
   if (asset.priceApt <= 0) {
     return { canAccess: true, isOwner: false, hasPurchased: false };
   }

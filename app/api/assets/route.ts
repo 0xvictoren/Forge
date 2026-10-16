@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { createAsset } from "@/lib/v2/assets";
+import { redactSensitiveResponse } from "@/lib/security-response";
+import { inspectShelbyBlob, STORAGE_SALE_SAFETY_MS } from "@/lib/shelby-lifecycle";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -40,15 +42,8 @@ export async function GET(request: Request) {
     take: 50,
   });
 
-  // Strip key material from list responses
-  const safeAssets = assets.map((a) => {
-    const {
-      encryptionShareKey: _s,
-      wrappedKeyOwner: _o,
-      wrappedKeyShare: _w,
-      ...rest
-    } = a;
-    return rest;
+  const safeAssets = redactSensitiveResponse(assets, {
+    redactStorageReferences: !mine,
   });
 
   return NextResponse.json({ assets: safeAssets });
@@ -89,6 +84,13 @@ export async function POST(request: Request) {
       }
     }
 
+    const storage = await inspectShelbyBlob(body.blobRef, {
+      expectedSha256: body.storageSha256,
+      verifyIntegrity: !!body.storageSha256,
+    });
+    const storageSaleable = storage.available &&
+      (!storage.expiresAt || storage.expiresAt.getTime() > Date.now() + STORAGE_SALE_SAFETY_MS);
+
     const asset = await createAsset({
       userId: user.id,
       title: body.title,
@@ -103,7 +105,7 @@ export async function POST(request: Request) {
       tags: body.tags,
       thumbnailRef: body.thumbnailRef,
       assetType: body.assetType,
-      isListed: body.isListed ?? false,
+      isListed: (body.isListed ?? false) && storageSaleable,
       isStream: body.isStream ?? false,
       streamVisibility: body.streamVisibility || body.streamVisibility || "everyone",
       streamPriceApt: Number(body.streamPriceApt || 0),
@@ -112,18 +114,22 @@ export async function POST(request: Request) {
       wrappedKeyOwner: encryption?.wrappedKeyOwner,
       wrappedKeyShare: encryption?.wrappedKeyShare,
       encryptionShareKey: encryption?.encryptionShareKey,
+      contentSha256: body.storageSha256,
+      storageOwner: storage.owner,
+      storageTxHash: body.storageTxHash,
+      storageExpiresAt: storage.expiresAt,
+      storageStatus: storageSaleable ? "ACTIVE" : storage.available ? "EXPIRING" : "UNAVAILABLE",
+      integrityStatus: storage.integrityStatus,
+      integrityLastCheckedAt: body.storageSha256 ? new Date() : undefined,
     });
 
     // Never echo share key back on create responses used by public clients
-    const { encryptionShareKey: _omit, ...safeAsset } = asset as typeof asset & {
-      encryptionShareKey?: string | null;
-    };
+    const safeAsset = redactSensitiveResponse(asset);
 
     return NextResponse.json({
       asset: {
         ...safeAsset,
         isEncrypted: asset.isEncrypted,
-        // Owner still needs their wrap for local re-decrypt; share key stays server-side only here
         hasEncryption: asset.isEncrypted,
       },
     });

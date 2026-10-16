@@ -43,7 +43,7 @@ export function SiteHeader({ showSearch = true }: { showSearch?: boolean }) {
   const [searchTab, setSearchTab] = useState("Projects");
   const [query, setQuery] = useState("");
   const { user, setUser, setWallet } = useAppStore();
-  const { connected, account } = useWallet();
+  const { connected, account, signMessage } = useWallet();
   const { t } = useI18n();
   const walletAddress = account?.address?.toString();
   const isAuthenticated = !!user || (connected && !!walletAddress);
@@ -66,6 +66,8 @@ export function SiteHeader({ showSearch = true }: { showSearch?: boolean }) {
           currentUser: user,
           setUser,
           setWallet,
+          signMessage,
+          publicKey: account?.publicKey,
         });
         if (!sessionUser) {
           stashAuthReturn(href);
@@ -75,7 +77,7 @@ export function SiteHeader({ showSearch = true }: { showSearch?: boolean }) {
 
       router.push(href);
     },
-    [user, connected, walletAddress, pathname, router, setUser, setWallet]
+    [user, connected, walletAddress, pathname, router, setUser, setWallet, signMessage, account?.publicKey]
   );
 
   const navigate = useCallback(

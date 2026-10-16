@@ -15,7 +15,7 @@ export async function parseJsonResponse<T = Record<string, unknown>>(
   } catch {
     throw new Error(
       text.startsWith("<")
-        ? `Server error (${res.status}) — check API logs`
+        ? `Server error (${res.status}), check API logs`
         : text.slice(0, 240)
     );
   }

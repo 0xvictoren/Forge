@@ -192,7 +192,7 @@ export default async function AssetPage({
                     title={asset.title}
                   />
                   <p className="mt-2 text-center text-[10px] text-[var(--text-muted)]">
-                    Creator receives 98%. 2% platform fee.
+                    Creator receives 95%. 5% platform fee.
                   </p>
                 </div>
               )}

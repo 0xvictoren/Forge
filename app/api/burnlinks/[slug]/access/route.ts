@@ -3,12 +3,13 @@ import { prisma } from "@/lib/db";
 import { normalizeAptosAddress } from "@/lib/wallet-access";
 import {
   assertGrantWallet,
-  assertViewLimits,
+  consumeGrantView,
   assertWalletGate,
   buildGrantStreamUrl,
   ownerWalletOf,
 } from "@/lib/burnlink-access";
 import { toAuthorizedKeyPackage } from "@/lib/encryption";
+import { getSessionUser } from "@/lib/auth";
 
 function formatExpiresIn(expiresAt: Date | null): string | null {
   if (!expiresAt) return null;
@@ -26,22 +27,22 @@ export async function GET(
   { params }: { params: Promise<{ slug: string }> }
 ) {
   const token = req.nextUrl.searchParams.get("token");
-  const rawWallet = req.nextUrl.searchParams.get("walletAddress") || "";
   const { slug } = await params;
+  const user = await getSessionUser();
+
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
   if (!token) {
     return NextResponse.json({ error: "Access denied" }, { status: 403 });
   }
 
-  if (!rawWallet) {
-    return NextResponse.json({ error: "Wallet address required" }, { status: 401 });
-  }
-
   let walletAddress: string;
   try {
-    walletAddress = normalizeAptosAddress(rawWallet);
+    walletAddress = normalizeAptosAddress(user.walletAddress || user.address || "");
   } catch {
-    return NextResponse.json({ error: "Invalid wallet address" }, { status: 400 });
+    return NextResponse.json({ error: "Authenticated wallet required" }, { status: 401 });
   }
 
   const burnlink = await prisma.burnLink.findUnique({
@@ -75,7 +76,7 @@ export async function GET(
   }
 
   const grant = await prisma.accessGrant.findFirst({
-    where: { burnLinkId: burnlink.id, viewToken: token },
+    where: { burnLinkId: burnlink.id, viewToken: token, userId: user.id },
   });
 
   if (!grant) {
@@ -87,25 +88,20 @@ export async function GET(
     return NextResponse.json({ error: walletMatch.error }, { status: walletMatch.status });
   }
 
-  const limits = assertViewLimits(burnlink, grant);
-  if (!limits.ok) {
-    return NextResponse.json({ error: limits.error }, { status: limits.status });
+  const consumed = await consumeGrantView(burnlink, grant);
+  if (!consumed.ok) {
+    return NextResponse.json({ error: consumed.error }, { status: consumed.status });
   }
-
-  await prisma.accessGrant.update({
-    where: { id: grant.id },
-    data: { viewsUsed: { increment: 1 } },
-  });
 
   const fileName = burnlink.file.fileName || "download";
   const streamUrl = buildGrantStreamUrl({
     burnLink: burnlink,
-    grant,
+    grant: consumed.grant,
     blobId: burnlink.file.blobId,
     fileName,
   });
 
-  const viewsAfter = grant.viewsUsed + 1;
+  const viewsAfter = consumed.grant.viewsUsed;
   const remainingViews =
     burnlink.maxViews != null
       ? Math.max(0, burnlink.maxViews - viewsAfter)
@@ -114,10 +110,10 @@ export async function GET(
   const ownerWallet = ownerWalletOf(burnlink);
   let isOwner = false;
   try {
-    isOwner = !!(
-      ownerWallet &&
-      normalizeAptosAddress(ownerWallet) === normalizeAptosAddress(walletAddress)
-    );
+    isOwner =
+      burnlink.userId === user.id &&
+      !!ownerWallet &&
+      normalizeAptosAddress(ownerWallet) === normalizeAptosAddress(walletAddress);
   } catch {
     isOwner = false;
   }

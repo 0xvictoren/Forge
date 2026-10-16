@@ -22,7 +22,7 @@ export function FilePreview({ files }: { files: FileMeta[] }) {
     files.forEach((f, i) => {
       if (f.mime.startsWith("image/") || f.mime.startsWith("video/") || f.mime.startsWith("audio/")) {
         const blob = new Blob([], { type: f.mime });
-        // We don't have the actual File object here — previews are set by parent via blob URLs
+        // We don't have the actual File object here - previews are set by parent via blob URLs
       }
     });
 

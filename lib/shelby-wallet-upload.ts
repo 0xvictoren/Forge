@@ -32,10 +32,10 @@ function sanitizeName(name: string): string {
 
 function defaultExpirationHours(kind: ShelbyUploadKind): number {
   if (kind === "avatar" || kind === "banner") return 365 * 24;
-  return 168;
+  return 30 * 24;
 }
 
-// Wallet + Shelby SDK signer shapes vary by adapter — keep loose for compatibility.
+// Wallet + Shelby SDK signer shapes vary by adapter - keep loose for compatibility.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type ShelbyWalletSigner = any;
 

@@ -179,7 +179,7 @@ export function ExploreBrowser() {
               min={0}
               step="0.1"
             />
-            <span className="text-xs text-[var(--text-muted)]">–</span>
+            <span className="text-xs text-[var(--text-muted)]">to</span>
             <input
               type="number"
               placeholder="Max"
@@ -197,7 +197,7 @@ export function ExploreBrowser() {
         </button>
 
         <p className="text-[10px] leading-relaxed text-[var(--text-muted)]">
-          Search by title, description, or tags. 2% platform fee on paid assets.
+          Search by title, description, or tags. 5% platform fee on paid assets.
         </p>
       </div>
     </aside>

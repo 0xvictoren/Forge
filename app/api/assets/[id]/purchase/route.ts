@@ -12,10 +12,11 @@ export async function POST(
   const { id } = await params;
   const body = await request.json();
   const txHash = body.txHash as string;
-  const walletAddress = (body.walletAddress || user.walletAddress || user.address) as string;
+  const intentId = body.intentId as string;
+  const walletAddress = (user.walletAddress || user.address) as string;
 
-  if (!txHash?.startsWith("0x")) {
-    return NextResponse.json({ error: "Transaction hash required" }, { status: 400 });
+  if (!txHash?.startsWith("0x") || !intentId || !walletAddress) {
+    return NextResponse.json({ error: "Payment intent and transaction hash required" }, { status: 400 });
   }
 
   try {
@@ -23,6 +24,7 @@ export async function POST(
       buyerId: user.id,
       assetId: id,
       txHash,
+      intentId,
       walletAddress,
     });
 

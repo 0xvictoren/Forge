@@ -107,6 +107,8 @@ export async function verifyAptPayment(
     sender?: string;
     recipient?: string;
     minAmountApt?: number;
+    exactAmountApt?: number;
+    notBefore?: Date;
   }
 ): Promise<{ valid: boolean; error?: string }> {
   if (!txHash?.startsWith("0x")) {
@@ -129,7 +131,14 @@ export async function verifyAptPayment(
       })) as Record<string, unknown>;
 
       if ("success" in tx && tx.success === false) {
-        return { valid: false, error: "Transaction failed on-chain" };
+        return { valid: false, error: "Transaction failed onchain" };
+      }
+
+      if (options.notBefore && tx.timestamp != null) {
+        const timestampMs = Number(BigInt(String(tx.timestamp)) / BigInt(1_000));
+        if (timestampMs < options.notBefore.getTime()) {
+          return { valid: false, error: "Transaction predates the payment intent" };
+        }
       }
 
       if (options.sender && "sender" in tx && tx.sender) {
@@ -140,7 +149,7 @@ export async function verifyAptPayment(
         }
       }
 
-      if (options.recipient || options.minAmountApt != null) {
+      if (options.recipient || options.minAmountApt != null || options.exactAmountApt != null) {
         const transfer = extractTransfer(tx, options.recipient);
         if (!transfer) {
           return { valid: false, error: "No APT transfer found in transaction" };
@@ -165,6 +174,17 @@ export async function verifyAptPayment(
             return {
               valid: false,
               error: `Insufficient amount: got ${octasToApt(transfer.amount)} APT, expected at least ${options.minAmountApt} APT`,
+            };
+          }
+        }
+
+
+        if (options.exactAmountApt != null) {
+          const exactOctas = aptToOctas(options.exactAmountApt);
+          if (transfer.amount !== exactOctas) {
+            return {
+              valid: false,
+              error: `Incorrect amount: got ${octasToApt(transfer.amount)} APT, expected ${options.exactAmountApt} APT`,
             };
           }
         }

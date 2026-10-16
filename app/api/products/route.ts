@@ -1,6 +1,38 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { redactSensitiveResponse } from "@/lib/security-response";
+import { z } from "zod";
+
+const objectId = z.string().regex(/^[a-f0-9]{24}$/i);
+const productCreateSchema = z.object({
+  title: z.string().trim().min(1).max(160),
+  description: z.string().trim().max(5_000).optional(),
+  productType: z.string().trim().max(50).optional(),
+  priceApt: z.number().finite().nonnegative().max(10_000).optional(),
+  vaultId: objectId.optional(),
+  thumbnailRef: z.string().trim().max(2_000).optional(),
+  assetIds: z.array(objectId).max(100).default([]),
+});
+const productPatchSchema = z.object({
+  productId: objectId,
+  isListed: z.boolean().optional(),
+  title: z.string().trim().min(1).max(160).optional(),
+  description: z.string().trim().max(5_000).nullable().optional(),
+  priceApt: z.number().finite().nonnegative().max(10_000).optional(),
+  thumbnailRef: z.string().trim().max(2_000).nullable().optional(),
+  addAssetIds: z.array(objectId).max(100).default([]),
+  removeAssetIds: z.array(objectId).max(100).default([]),
+});
+
+async function ownsAssets(userId: string, assetIds: string[]) {
+  if (!assetIds.length) return true;
+  const uniqueIds = [...new Set(assetIds)];
+  const count = await prisma.asset.count({
+    where: { id: { in: uniqueIds }, userId },
+  });
+  return count === uniqueIds.length;
+}
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -32,16 +64,35 @@ export async function GET(request: Request) {
     take: 30,
   });
 
-  return NextResponse.json({ products });
+  return NextResponse.json({
+    products: redactSensitiveResponse(products, { redactStorageReferences: true }),
+  });
 }
 
 export async function POST(request: Request) {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const body = await request.json();
-  if (!body.title) {
-    return NextResponse.json({ error: "Title required" }, { status: 400 });
+  const parsed = productCreateSchema.safeParse(await request.json());
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Invalid product input" }, { status: 400 });
+  }
+  const body = parsed.data;
+
+  if (!(await ownsAssets(user.id, body.assetIds))) {
+    return NextResponse.json(
+      { error: "Products may only contain assets you own" },
+      { status: 403 }
+    );
+  }
+  if (body.vaultId) {
+    const vault = await prisma.vault.findUnique({
+      where: { id: body.vaultId },
+      select: { userId: true },
+    });
+    if (!vault || vault.userId !== user.id) {
+      return NextResponse.json({ error: "Invalid vault" }, { status: 403 });
+    }
   }
 
   const product = await prisma.product.create({
@@ -50,13 +101,13 @@ export async function POST(request: Request) {
       title: body.title,
       description: body.description,
       productType: body.productType || "BUNDLE",
-      priceApt: Number(body.priceApt || 0),
+      priceApt: body.priceApt || 0,
       vaultId: body.vaultId,
       thumbnailRef: body.thumbnailRef,
       isListed: false, // user must explicitly list before it appears in explorer
-      items: body.assetIds?.length
+      items: body.assetIds.length
         ? {
-            create: (body.assetIds as string[]).map((assetId: string, i: number) => ({
+            create: body.assetIds.map((assetId, i) => ({
               assetId,
               sortOrder: i,
             })),
@@ -66,14 +117,19 @@ export async function POST(request: Request) {
     include: { items: true },
   });
 
-  return NextResponse.json({ product });
+  return NextResponse.json({
+    product: redactSensitiveResponse(product, { redactStorageReferences: true }),
+  });
 }
 
 export async function PATCH(request: Request) {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const body = await request.json();
+  const parsed = productPatchSchema.safeParse(await request.json());
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Invalid product update" }, { status: 400 });
+  }
   const {
     productId,
     isListed,
@@ -83,9 +139,7 @@ export async function PATCH(request: Request) {
     thumbnailRef,
     addAssetIds = [],
     removeAssetIds = [],
-  } = body;
-
-  if (!productId) return NextResponse.json({ error: "productId required" }, { status: 400 });
+  } = parsed.data;
 
   const product = await prisma.product.findUnique({ where: { id: productId }, include: { items: true } });
   if (!product || product.userId !== user.id) {
@@ -111,6 +165,12 @@ export async function PATCH(request: Request) {
     const existingAssetIds = new Set(product.items.map(i => i.assetId).filter(Boolean));
     const newAdds = addAssetIds.filter((aid: string) => !existingAssetIds.has(aid));
     if (newAdds.length) {
+      if (!(await ownsAssets(user.id, newAdds))) {
+        return NextResponse.json(
+          { error: "Products may only contain assets you own" },
+          { status: 403 }
+        );
+      }
       await prisma.productItem.createMany({
         data: newAdds.map((assetId: string, i: number) => ({
           productId,
@@ -127,5 +187,7 @@ export async function PATCH(request: Request) {
     include: { items: { include: { asset: true } } },
   });
 
-  return NextResponse.json({ product: updated });
+  return NextResponse.json({
+    product: redactSensitiveResponse(updated, { redactStorageReferences: true }),
+  });
 }

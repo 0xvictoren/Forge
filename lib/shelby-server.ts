@@ -35,7 +35,7 @@ export async function uploadToShelby(
   const expirationMicros =
     typeof metadata?.expirationMicros === "number"
       ? metadata.expirationMicros
-      : Date.now() * 1000 + 365 * 24 * 60 * 60 * 1_000_000;
+      : Date.now() * 1000 + 30 * 24 * 60 * 60 * 1_000_000;
 
   try {
     // SDK 0.7+: register → putBlobChunksets → commit_object (overwrite).
@@ -44,7 +44,6 @@ export async function uploadToShelby(
       blobData: new Uint8Array(buffer),
       signer,
       blobName,
-      expirationMicros,
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);

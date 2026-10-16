@@ -9,6 +9,14 @@ import {
   S3_SECRET_ACCESS_KEY,
   S3_BUCKET,
 } from "@/lib/constants-shelby";
+import { z } from "zod";
+import { checkRateLimit } from "@/lib/rate-limit";
+
+const presignSchema = z.object({
+  fileName: z.string().trim().min(1).max(255),
+  contentType: z.string().regex(/^video\/[a-z0-9.+-]+$/i).max(200),
+  fileSize: z.number().int().positive().max(500 * 1024 * 1024),
+});
 
 const s3Client = new S3Client({
   endpoint: S3_ENDPOINT,
@@ -26,16 +34,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { fileName, contentType, fileSize } = await request.json();
-
-  if (!fileName || !contentType) {
-    return NextResponse.json({ error: "fileName and contentType required" }, { status: 400 });
+  const rate = checkRateLimit(`stream-presign:${user.id}`, {
+    limit: 20,
+    windowMs: 60 * 60 * 1_000,
+  });
+  if (!rate.allowed) {
+    return NextResponse.json(
+      { error: "Upload limit reached" },
+      { status: 429, headers: { "Retry-After": String(rate.retryAfterSeconds) } }
+    );
   }
 
-  // Only videos for Stream (legacy S3 Gateway path — Stream uploads now prefer /api/upload/stream)
-  if (!contentType.startsWith("video/")) {
-    return NextResponse.json({ error: "Only video files allowed for Stream" }, { status: 400 });
+  const parsed = presignSchema.safeParse(await request.json());
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Valid video metadata required" }, { status: 400 });
   }
+  const { fileName, contentType, fileSize } = parsed.data;
 
   const key = `streams/${user.id}/${Date.now()}-${fileName.replace(/[^a-zA-Z0-9.-]/g, "_")}`;
 
@@ -43,6 +57,7 @@ export async function POST(request: Request) {
     Bucket: S3_BUCKET,
     Key: key,
     ContentType: contentType,
+    ContentLength: fileSize,
     // ACL: "public-read", // if needed, depending on gateway
   });
 

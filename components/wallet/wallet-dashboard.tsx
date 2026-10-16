@@ -51,7 +51,7 @@ export function WalletDashboard({ summary, transactions }: Props) {
         <div className="mx-auto max-w-[1400px]">
           <h1 className="text-xl font-bold">Wallet</h1>
           <p className="text-sm text-[var(--text-secondary)]">
-            Full payment goes to creators · 2% platform fee tracked on sales
+            Full payment goes to creators · 5% platform fee tracked on sales
           </p>
         </div>
       </div>

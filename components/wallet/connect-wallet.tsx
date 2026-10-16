@@ -10,7 +10,7 @@ import { navigateToReturnPath } from "@/lib/auth-return-nav";
 import { getAccountBalance } from "@/lib/aptos";
 import { toast } from "sonner";
 
-export function ConnectWallet({ className = "" }: { className?: string }) {
+export function ConnectWallet({ className = "", compact = false }: { className?: string; compact?: boolean }) {
   const { connect, disconnect, account, connected, wallets } = useWallet();
   const { setUser, setWallet } = useAppStore();
   const router = useRouter();
@@ -106,15 +106,15 @@ export function ConnectWallet({ className = "" }: { className?: string }) {
         <button
           type="button"
           onClick={() => setMenuOpen((o) => !o)}
-          className="btn-ghost inline-flex items-center gap-2"
+          className="inline-flex h-9 items-center gap-2 rounded-full bg-[var(--bg-hover)] px-3.5 text-[14px] font-medium transition-colors hover:bg-[var(--bg-pressed)]"
         >
-          <Wallet className="h-4 w-4" />
-          {truncateAddress(address)}
+          <span className="h-2 w-2 rounded-full bg-[var(--green-solid)]" aria-hidden />
+          <span className="tabular">{truncateAddress(address, compact ? 4 : 6, 4)}</span>
           <ChevronDown className={`h-3.5 w-3.5 transition ${menuOpen ? "rotate-180" : ""}`} />
         </button>
 
         {menuOpen && (
-          <div className="absolute right-0 top-full z-50 mt-2 w-64 rounded-xl border border-[var(--border-dim)] bg-[var(--bg-elevated)] p-3 shadow-lg">
+          <div className="glass glass-strong absolute right-0 top-full z-50 mt-2 w-72 rounded-3xl p-4 text-[var(--text-primary)]">
             <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
               Wallet
             </p>
@@ -129,7 +129,7 @@ export function ConnectWallet({ className = "" }: { className?: string }) {
                   ? "…"
                   : balance != null
                     ? `${formatApt(balance, 4)} APT`
-                    : "—"}
+                    : "Unavailable"}
               </p>
             </div>
 
@@ -162,10 +162,10 @@ export function ConnectWallet({ className = "" }: { className?: string }) {
       type="button"
       onClick={handleConnect}
       disabled={loading}
-      className={`btn-primary ${className}`}
+      className={`btn-primary ${compact ? "btn-sm h-9" : ""} ${className}`}
     >
       <Wallet className="h-4 w-4" />
-      {loading ? "Connecting…" : "Connect Wallet"}
+      {loading ? "Connecting…" : compact ? "Connect" : "Connect wallet"}
     </button>
   );
 }

@@ -111,7 +111,7 @@ export function CloudImport({ onImportSuccess }: Props) {
   const connect = () => {
     if (!status?.googleConfigured) {
       toast.error(
-        "Google OAuth not configured — set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and NEXT_PUBLIC_APP_URL in .env"
+        "Google OAuth not configured, set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and NEXT_PUBLIC_APP_URL in .env"
       );
       return;
     }
@@ -193,7 +193,7 @@ export function CloudImport({ onImportSuccess }: Props) {
       onImportSuccess(blobRefs, { shelbyTxHash: lastShelbyTxHash }, metas);
 
       if (asBundle && blobRefs.length > 1) {
-        toast.info("Files imported — enable “Create as bundle” in the form below.");
+        toast.info("Files imported, enable “Create as bundle” in the form below.");
       }
     } catch (e) {
       const msg = e instanceof Error ? formatShelbyUploadError(e.message) : "Import failed";

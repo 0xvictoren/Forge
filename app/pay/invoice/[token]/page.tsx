@@ -8,6 +8,7 @@ import { useAptTransfer } from "@/lib/use-apt-transfer";
 import { getPusherClient, userChannel } from "@/lib/pusher";
 import { useAppStore } from "@/lib/store";
 import { Check, Loader2 } from "lucide-react";
+import { LEGACY_MARKETPLACE_PAYMENTS_ENABLED } from "@/lib/payment-policy";
 
 interface InvoiceData {
   invoiceNumber: string;
@@ -59,6 +60,11 @@ export default function InvoicePayPage() {
 
   const pay = async () => {
     if (!invoice) return;
+    if (!LEGACY_MARKETPLACE_PAYMENTS_ENABLED) {
+      setError("Invoice payments are paused while Forge migrates settlement to USDC");
+      setStatus("error");
+      return;
+    }
     setStatus("loading");
     setError("");
     try {

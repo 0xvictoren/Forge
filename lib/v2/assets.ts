@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { inferAssetType } from "./constants";
 import { processAssetMetadata } from "./asset-metadata";
 import { recordLibraryActivity } from "@/lib/library-activity";
+import { randomBytes } from "crypto";
 
 export async function createAssetFromBurnLink(burnLinkId: string) {
   const burnLink = await prisma.burnLink.findUnique({
@@ -21,6 +22,12 @@ export async function createAssetFromBurnLink(burnLinkId: string) {
       userId: burnLink.userId,
       title: burnLink.title || burnLink.file.fileName,
       blobRef: burnLink.file.blobId,
+      datasetId: randomBytes(16).toString("hex"),
+      versionId: randomBytes(32).toString("hex"),
+      storageExpiresAt: burnLink.expiresAt ?? undefined,
+      storageStatus: burnLink.expiresAt && burnLink.expiresAt.getTime() > Date.now()
+        ? "ACTIVE"
+        : "UNKNOWN",
       fileName: burnLink.file.fileName,
       mimeType: burnLink.file.mimeType,
       fileSize: burnLink.file.fileSize,
@@ -66,6 +73,15 @@ export async function createAsset(input: {
   wrappedKeyOwner?: string | null;
   wrappedKeyShare?: string | null;
   encryptionShareKey?: string | null;
+  datasetId?: string;
+  versionId?: string;
+  contentSha256?: string;
+  storageOwner?: string;
+  storageTxHash?: string;
+  storageExpiresAt?: Date;
+  storageStatus?: string;
+  integrityStatus?: string;
+  integrityLastCheckedAt?: Date;
 }) {
   const asset = await prisma.asset.create({
     data: {
@@ -73,6 +89,19 @@ export async function createAsset(input: {
       title: input.title,
       description: input.description,
       blobRef: input.blobRef,
+      datasetId: input.datasetId || randomBytes(16).toString("hex"),
+      versionId: input.versionId || randomBytes(32).toString("hex"),
+      contentSha256: input.contentSha256,
+      storageOwner: input.storageOwner,
+      storageTxHash: input.storageTxHash,
+      storageExpiresAt: input.storageExpiresAt,
+      storageStatus: input.storageStatus || "UNKNOWN",
+      integrityStatus: input.integrityStatus || "UNVERIFIED",
+      integrityLastCheckedAt: input.integrityLastCheckedAt,
+      renewalStatus: input.storageExpiresAt ? "SCHEDULED" : "UNSCHEDULED",
+      renewalNextAttemptAt: input.storageExpiresAt
+        ? new Date(input.storageExpiresAt.getTime() - 72 * 60 * 60 * 1_000)
+        : undefined,
       fileName: input.fileName,
       mimeType: input.mimeType,
       fileSize: input.fileSize,

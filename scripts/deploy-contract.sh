@@ -10,11 +10,21 @@ if [ -f "$ROOT/.env" ]; then
   set +a
 fi
 
-DEPLOYER="${DEPLOYER_ADDRESS:-0x8e9918d910feda3733f078af8fcf17e4a07eed9e255f4261779ca1ba55c642b6}"
+DEPLOYER="${FORGE_DEPLOYER_ADDRESS:-}"
 NODE_URL="${APTOS_NODE_URL:-https://api.shelbynet.shelby.xyz/v1}"
 PROFILE="${APTOS_PROFILE:-}"
 PK="${SHELBY_SIGNER_PRIVATE_KEY:-}"
-TREASURY="${NEXT_PUBLIC_PLATFORM_ADDRESS:-0x3b89c6e123ebc9657431c9a9bfac99b0b581610772808ef79ac4d4f7cfc9ae6c}"
+TREASURY="${FORGE_TREASURY_ADDRESS:-}"
+
+if [ -z "$DEPLOYER" ] || [ -z "$TREASURY" ]; then
+  echo "Set FORGE_DEPLOYER_ADDRESS and FORGE_TREASURY_ADDRESS explicitly. Deployment has no address defaults." >&2
+  exit 1
+fi
+EXPECTED_CONFIRMATION="${DEPLOYER}:${TREASURY}"
+if [ "${CONFIRM_FORGE_DEPLOYMENT:-}" != "$EXPECTED_CONFIRMATION" ]; then
+  echo "Set CONFIRM_FORGE_DEPLOYMENT=$EXPECTED_CONFIRMATION after independently confirming both addresses." >&2
+  exit 1
+fi
 
 cd "$(dirname "$0")/../move"
 export APTOS_CONFIG_DIR="$ROOT/.aptos"

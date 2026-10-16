@@ -2,8 +2,24 @@
   "buildCommand": "prisma generate && next build",
   "installCommand": "npm install",
   "framework": "nextjs",
-  "regions": ["iad1"],
+  "regions": [
+    "iad1"
+  ],
+  "crons": [
+    {
+      "path": "/api/internal/storage/reconcile",
+      "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/settle-reads",
+      "schedule": "15 * * * *"
+    },
+    {
+      "path": "/api/cron/anchor-memory",
+      "schedule": "30 * * * *"
+    }
+  ],
   "env": {
-    "PLATFORM_FEE_BPS": "200"
+    "PLATFORM_FEE_BPS": "500"
   }
 }

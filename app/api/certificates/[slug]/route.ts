@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { redactSensitiveResponse } from "@/lib/security-response";
 
 export async function GET(
   _request: Request,
@@ -23,7 +24,9 @@ export async function GET(
   }
 
   return NextResponse.json({
-    certificate,
+    certificate: redactSensitiveResponse(certificate, {
+      redactStorageReferences: true,
+    }),
     verified: true,
   });
 }

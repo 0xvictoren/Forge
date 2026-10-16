@@ -86,7 +86,7 @@ export default function BurnLinkCreator() {
       const data = await res.json();
 
       if (res.ok) {
-        toast.success(`BurnLink created — /b/${data.slug}`);
+        toast.success(`BurnLink created, /b/${data.slug}`);
         router.push(`/b/${data.slug}`);
       } else {
         toast.error(data.error || "Failed to create BurnLink");
@@ -213,7 +213,7 @@ export default function BurnLinkCreator() {
                   onChange={(e) => setWalletGated(e.target.checked)}
                   className="rounded"
                 />
-                Private — wallet whitelist only
+                Private, wallet whitelist only
               </label>
               {walletGated && (
                 <div className="mt-3">

@@ -5,10 +5,11 @@ import { ConnectWallet } from "@/components/wallet/connect-wallet";
 import { useState, useMemo } from "react";
 import { PLATFORM_FEE_BPS, PLATFORM_ADDRESS } from "@/lib/constants";
 import { toast } from "sonner";
-import { useAptTransfer } from "@/lib/use-apt-transfer";
+import { useForgePurchase } from "@/lib/use-forge-purchase";
 import { parseJsonResponse } from "@/lib/fetch-json";
 import { AccountAddress } from "@aptos-labs/ts-sdk";
 import { ACCESS_DENIED_MESSAGE, isWalletAllowed } from "@/lib/wallet-access";
+import { requestPaymentIntent } from "@/lib/client-payment-intent";
 
 interface Props {
   slug: string;
@@ -42,7 +43,7 @@ export function UnlockActions({
   allowedWallets = [],
 }: Props) {
   const { account, connected } = useWallet();
-  const { transfer } = useAptTransfer();
+  const { settlePurchase } = useForgePurchase();
   const [status, setStatus] = useState<"idle" | "loading" | "done">("idle");
   const [error, setError] = useState("");
 
@@ -86,40 +87,30 @@ export function UnlockActions({
     setStatus("loading");
     setError("");
 
-    const wallet = account.address.toString();
-    const walletNormalized = normalizeWallet(wallet);
-
     try {
       if (isOwner) {
-        const redirect = await callUnlock({
-          walletAddress: walletNormalized,
-          userAddress: walletNormalized,
-          ownerBypass: true,
-        });
-        toast.success("Owner access — opening file…");
+        const redirect = await callUnlock({});
+        toast.success("Owner access, opening file…");
         window.location.href = redirect;
         return;
       }
 
       let txHash: string | undefined;
+      let intentId: string | undefined;
 
       if (priceApt > 0) {
         if (!creatorWallet) {
           throw new Error("Creator wallet not configured");
         }
-        const nowSec = Math.floor(Date.now() / 1000);
-        txHash = await transfer(creatorWallet, priceApt, {
-          expireTimestamp: nowSec + 120,
-          gasUnitPrice: 100,
-          maxGasAmount: 300_000,
-        });
-        toast.info("Transaction submitted — verifying on ShelbyNet…");
+        const intent = await requestPaymentIntent("BURNLINK", slug);
+        intentId = intent.id;
+        txHash = await settlePurchase(intent);
+        toast.info("Transaction submitted, verifying on ShelbyNet…");
       }
 
       const redirect = await callUnlock({
-        walletAddress: walletNormalized,
-        userAddress: walletNormalized,
         txHash,
+        intentId,
       });
 
       toast.success("Payment successful! Unlocking file…");
@@ -171,7 +162,7 @@ export function UnlockActions({
       {error && <p className="text-center text-sm text-[var(--red)]">{error}</p>}
       {priceApt > 0 && creatorWallet && !isOwner && (
         <p className="text-center text-xs text-[var(--text-muted)]">
-          Full {priceApt} APT to creator · {feePct}% platform fee (
+          {priceApt} APT total · includes {feePct}% platform fee (
           {PLATFORM_ADDRESS
             ? `${PLATFORM_ADDRESS.slice(0, 6)}…${PLATFORM_ADDRESS.slice(-4)}`
             : "set NEXT_PUBLIC_PLATFORM_ADDRESS"}

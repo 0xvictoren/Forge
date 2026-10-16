@@ -26,7 +26,7 @@ export function TransactionFeedback({
       spin: true,
       color: "text-[var(--accent)]",
       label: "Verifying payment…",
-      defaultMsg: "Checking on-chain transaction on ShelbyNet.",
+      defaultMsg: "Checking onchain transaction on ShelbyNet.",
     },
     success: {
       icon: CheckCircle2,

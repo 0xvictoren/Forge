@@ -18,7 +18,7 @@ import { formatShelbyUploadError } from "@/lib/shelby-upload-errors";
 import type { EncryptionMaterial } from "@/lib/encryption";
 import { EncryptedBadge } from "@/components/ui/encrypted-badge";
 
-type FileMeta = { name: string; size: number; mime: string };
+type FileMeta = { name: string; size: number; mime: string; storageSha256?: string };
 
 type VaultOption = { id: string; name: string };
 type AssetOption = { id: string; title: string };
@@ -168,6 +168,12 @@ export default function AssetCreator() {
             thumbnailRef: thumbnailRef || undefined,
             isListed: shouldList && !makingBundle,
             encryption: enc || undefined,
+            storageSha256: meta.storageSha256,
+            storageExpiresAt: txData?.expirationMicros
+              ? new Date(txData.expirationMicros / 1_000).toISOString()
+              : undefined,
+            storageTxHash: txData?.shelbyTxHash,
+            storageOwner: account.address.toString(),
           }),
         });
         const data = await res.json();
@@ -424,7 +430,7 @@ export default function AssetCreator() {
                   onChange={(e) => setPriceApt(Math.max(0, Number(e.target.value)))}
                   className="input mt-1.5 text-xl font-semibold"
                 />
-                <p className="mt-1 text-xs text-[var(--text-muted)]">0 = free. 2% platform fee.</p>
+                <p className="mt-1 text-xs text-[var(--text-muted)]">0 = free. 5% platform fee.</p>
               </div>
 
               <div>

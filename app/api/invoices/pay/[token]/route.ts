@@ -7,11 +7,18 @@ import { PLATFORM_FEE_BPS, TxType } from "@/lib/constants";
 import { createNotification } from "@/lib/notifications";
 import { recordAnalyticsEvent } from "@/lib/analytics";
 import { getPusherServer, userChannel } from "@/lib/pusher";
+import { legacyMarketplacePaymentsEnabled } from "@/lib/payment-policy";
 
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ token: string }> }
 ) {
+  if (!legacyMarketplacePaymentsEnabled()) {
+    return NextResponse.json(
+      { error: "Invoice payments are paused while Forge migrates settlement to USDC" },
+      { status: 503 }
+    );
+  }
   const user = await getSessionUser();
   if (!user?.walletAddress) {
     return NextResponse.json({ error: "Wallet required" }, { status: 401 });

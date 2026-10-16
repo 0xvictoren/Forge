@@ -5,8 +5,15 @@ import { PLATFORM_FEE_BPS, TxType } from "@/lib/constants";
 import { verifyAptPayment, calcFee } from "@/lib/payments";
 import { recordAnalyticsEvent } from "@/lib/analytics";
 import { createNotification } from "@/lib/notifications";
+import { legacyMarketplacePaymentsEnabled } from "@/lib/payment-policy";
 
 export async function POST(request: Request) {
+  if (!legacyMarketplacePaymentsEnabled()) {
+    return NextResponse.json(
+      { error: "Tips are paused while Forge migrates settlement to USDC" },
+      { status: 503 }
+    );
+  }
   const user = await getSessionUser();
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -68,7 +75,7 @@ export async function POST(request: Request) {
         feeApt,
         netApt,
         counterpartyWallet: user.walletAddress || undefined,
-        description: `Tip from ${user.username || user.walletAddress?.slice(0, 8)}${message ? ` — "${message}"` : ""}`,
+        description: `Tip from ${user.username || user.walletAddress?.slice(0, 8)}${message ? `, "${message}"` : ""}`,
         txHash,
       },
     }),

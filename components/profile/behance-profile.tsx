@@ -195,7 +195,7 @@ export function BehanceProfile({ handle }: { handle: string }) {
                       <span className="text-[var(--accent)]">{formatApt(t.priceApt)}/mo</span>
                     </div>
                   ))}
-                  {(!data.tiers || data.tiers.length === 0) && <div className="text-[var(--text-muted)]">No tiers yet — add below.</div>}
+                  {(!data.tiers || data.tiers.length === 0) && <div className="text-[var(--text-muted)]">No tiers yet, add below.</div>}
                 </div>
                 <TierQuickAdd handle={data.handle} onAdded={load} />
               </div>

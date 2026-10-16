@@ -3,12 +3,16 @@ import { revalidatePath } from "next/cache";
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { recordLibraryActivity } from "@/lib/library-activity";
+import { canUserAccessAsset } from "@/lib/asset-access";
+import { redactSensitiveResponse } from "@/lib/security-response";
+import { storageIsSaleable } from "@/lib/shelby-lifecycle";
 
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+  const user = await getSessionUser();
 
   const asset = await prisma.asset.findUnique({
     where: { id },
@@ -39,13 +43,10 @@ export async function GET(
     data: { viewCount: { increment: 1 } },
   });
 
-  // Strip key material — use /decrypt-package after access check
-  const {
-    encryptionShareKey: _s,
-    wrappedKeyOwner: _o,
-    wrappedKeyShare: _w,
-    ...safeAsset
-  } = asset;
+  const access = await canUserAccessAsset(user?.id ?? null, asset);
+  const safeAsset = redactSensitiveResponse(asset, {
+    redactStorageReferences: !access.canAccess,
+  });
 
   return NextResponse.json({ asset: safeAsset });
 }
@@ -66,7 +67,15 @@ export async function PATCH(
   const body = await request.json();
   const updateData: any = {};
 
-  if (typeof body.isListed === "boolean") updateData.isListed = body.isListed;
+  if (typeof body.isListed === "boolean") {
+    if (body.isListed && !storageIsSaleable(asset)) {
+      return NextResponse.json(
+        { error: "Renew and verify Shelby storage before listing this asset" },
+        { status: 409 }
+      );
+    }
+    updateData.isListed = body.isListed;
+  }
   if (body.visibility) updateData.visibility = body.visibility;
   if (typeof body.priceApt === "number") updateData.priceApt = body.priceApt;
   if (body.title) updateData.title = body.title;
@@ -80,7 +89,7 @@ export async function PATCH(
     data: updateData,
   });
 
-  return NextResponse.json({ asset: updated });
+  return NextResponse.json({ asset: redactSensitiveResponse(updated) });
 }
 
 export async function DELETE(

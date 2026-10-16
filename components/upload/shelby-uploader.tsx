@@ -37,6 +37,7 @@ export type FileUploadMeta = {
   name: string;
   size: number;
   mime: string;
+  storageSha256?: string;
 };
 
 interface ShelbyUploaderProps {
@@ -70,7 +71,7 @@ export default function ShelbyUploader({
   maxFiles = 5,
   acceptedTypes = "image/*,video/*,audio/*,.pdf,.zip",
   storageFeeApt = BURNLINK_STORAGE_FEE_APT,
-  expirationHours = 168,
+  expirationHours = 720,
   encrypt: encryptProp,
   showEncryptToggle = mode === "media",
 }: ShelbyUploaderProps) {
@@ -165,10 +166,15 @@ export default function ShelbyUploader({
       const blobs = await Promise.all(
         filesToUpload.map(async (file, i) => {
           const buffer = await file.arrayBuffer();
+          const hash = await crypto.subtle.digest("SHA-256", buffer);
+          const storageSha256 = Array.from(new Uint8Array(hash), (byte) =>
+            byte.toString(16).padStart(2, "0")
+          ).join("");
           const baseName = sanitizeName(files[i]?.name || file.name);
           return {
             blobName: `forge/${mode === "burnlink" ? "burnlinks" : "media"}/${Date.now()}-${baseName}${doEncrypt ? ".enc" : ""}`,
             blobData: new Uint8Array(buffer),
+            storageSha256,
           };
         })
       );
@@ -195,7 +201,6 @@ export default function ShelbyUploader({
       await uploadBlobs.mutateAsync({
         signer: signingSigner,
         blobs,
-        expirationMicros,
         maxConcurrentUploads: 1,
       });
 
@@ -216,6 +221,7 @@ export default function ShelbyUploader({
           name: f.name,
           size: mat?.plaintextSize ?? f.size,
           mime: mat?.mimeType ?? (f.type || "application/octet-stream"),
+          storageSha256: blobs[i]?.storageSha256,
         };
       });
 

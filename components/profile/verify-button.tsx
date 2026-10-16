@@ -5,6 +5,7 @@ import { useAptTransfer } from "@/lib/use-apt-transfer";
 import { useAppStore } from "@/lib/store";
 import { BadgeCheck, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { LEGACY_MARKETPLACE_PAYMENTS_ENABLED } from "@/lib/payment-policy";
 
 export function VerifyButton({ onVerified }: { onVerified?: () => void }) {
   const [cost, setCost] = useState(10);
@@ -27,6 +28,11 @@ export function VerifyButton({ onVerified }: { onVerified?: () => void }) {
   }, []);
 
   const verify = async () => {
+    if (!LEGACY_MARKETPLACE_PAYMENTS_ENABLED) {
+      setError("Paid verification is paused while Forge migrates settlement to USDC");
+      setStatus("error");
+      return;
+    }
     if (!connected || !account) {
       setError("Connect your wallet first");
       setStatus("error");
@@ -89,7 +95,7 @@ export function VerifyButton({ onVerified }: { onVerified?: () => void }) {
         <div className="flex-1">
           <p className="text-sm font-semibold">Verify your profile</p>
           <p className="mt-1 text-xs text-[var(--text-secondary)]">
-            One-time {cost} APT on-chain verification. Builds trust across Forge.
+            One-time {cost} APT onchain verification. Builds trust across Forge.
           </p>
           {error && <p className="mt-2 text-xs text-[var(--red)]">{error}</p>}
           <button

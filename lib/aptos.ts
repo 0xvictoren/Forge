@@ -53,9 +53,6 @@ export function getAccountExplorerUrl(address: string): string {
 }
 
 export const forgeModule = {
-  verifyCreator: "verify_creator",
-  tipCreator: "tip_creator",
-  subscribe: "subscribe",
-  purchaseBurnlink: "purchase_burnlink",
+  settlePurchase: "settle_purchase",
   initializePlatform: "initialize_platform",
 };

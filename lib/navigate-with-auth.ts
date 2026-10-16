@@ -2,6 +2,7 @@ import type { SessionUser } from "@/lib/auth";
 import type { MainNavItem } from "@/lib/nav-config";
 import { AUTH_RETURN_KEY, resolveNavHref } from "@/lib/nav-config";
 import { syncWalletSession } from "@/lib/sync-session";
+import type { AptosSignMessageInput, AptosSignMessageOutput } from "@aptos-labs/wallet-adapter-core";
 
 const PROTECTED_PREFIXES = [
   "/home",
@@ -14,6 +15,9 @@ const PROTECTED_PREFIXES = [
   "/workspaces",
   "/onboarding",
   "/dashboard",
+  "/studio",
+  "/licenses",
+  "/compliance",
 ];
 
 export function routeNeedsSession(href: string): boolean {
@@ -29,11 +33,17 @@ export async function ensureSessionForNav(opts: {
   currentUser: SessionUser | null;
   setUser: (u: SessionUser) => void;
   setWallet: (w: string) => void;
+  signMessage?: (input: AptosSignMessageInput) => Promise<AptosSignMessageOutput>;
+  publicKey?: { toString(): string };
 }): Promise<SessionUser | null> {
   if (opts.currentUser) return opts.currentUser;
-  if (!opts.connected || !opts.walletAddress) return null;
+  if (!opts.connected || !opts.walletAddress || !opts.signMessage || !opts.publicKey) return null;
 
-  const synced = await syncWalletSession(opts.walletAddress);
+  const synced = await syncWalletSession(
+    opts.walletAddress,
+    opts.signMessage,
+    opts.publicKey
+  );
   if (synced) {
     opts.setUser(synced);
     opts.setWallet(opts.walletAddress);

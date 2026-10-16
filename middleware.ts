@@ -17,6 +17,9 @@ const PROTECTED_PREFIXES = [
   "/dashboard",
   "/bundles",
   "/stream",
+  "/studio",
+  "/licenses",
+  "/compliance",
 ];
 
 export async function middleware(request: NextRequest) {
@@ -41,6 +44,12 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
+    "/studio",
+    "/studio/:path*",
+    "/licenses",
+    "/licenses/:path*",
+    "/compliance",
+    "/compliance/:path*",
     "/home",
     "/home/:path*",
     "/upload",

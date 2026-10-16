@@ -203,7 +203,7 @@ export function ProfileMediaPicker({
           className="max-w-2xl"
         >
           <p className="mt-1 text-sm text-[var(--text-secondary)]">
-            Pick an image you have already uploaded to Shelby — assets, BurnLinks, or previous profile media.
+            Pick an image you have already uploaded to Shelby, assets, BurnLinks, or previous profile media.
           </p>
 
           {shelbyLoading ? (

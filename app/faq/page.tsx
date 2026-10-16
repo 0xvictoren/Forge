@@ -8,15 +8,15 @@ const FAQ_ITEMS = [
   },
   {
     q: "Do I need an account or email?",
-    a: "No. Connect your Aptos wallet (Petra, etc.) on ShelbyNet. Your wallet is your identity — no passwords or email sign-up required.",
+    a: "No. Connect your Aptos wallet (Petra, etc.) on ShelbyNet. Your wallet is your identity, no passwords or email sign-up required.",
   },
   {
     q: "What file types can I sell?",
-    a: "PDFs, videos, audio, images, code, zip packs, templates, and more. Files are stored on Shelby with on-chain blob registration.",
+    a: "PDFs, videos, audio, images, code, zip packs, templates, and more. Files are stored on Shelby with onchain blob registration.",
   },
   {
     q: "How do payments work?",
-    a: "Buyers pay in APT directly from their wallet. Creators receive payment minus a 2% platform fee. Every purchase issues a Certificate of Ownership.",
+    a: "Buyers pay from their wallet. Creators receive payment minus a 5% platform fee. Every purchase issues a Certificate of Ownership.",
   },
   {
     q: "What is a BurnLink?",

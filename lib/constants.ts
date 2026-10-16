@@ -1,5 +1,5 @@
 export const PLATFORM_FEE_BPS =
-  Number(process.env.PLATFORM_FEE_BPS) || 200; // 2% platform fee
+  Number(process.env.PLATFORM_FEE_BPS) || 500; // 5% platform fee
 
 export const MODULE_NAME = "forge";
 

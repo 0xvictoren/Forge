@@ -3,9 +3,10 @@
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { ConnectWallet } from "@/components/wallet/connect-wallet";
 import { useState } from "react";
-import { useAptTransfer } from "@/lib/use-apt-transfer";
+import { useForgePurchase } from "@/lib/use-forge-purchase";
 import { toast } from "sonner";
 import { TransactionFeedback, type TxStatus } from "./transaction-feedback";
+import { requestPaymentIntent } from "@/lib/client-payment-intent";
 
 export function ProductBuyButton({
   productId,
@@ -19,7 +20,7 @@ export function ProductBuyButton({
   title: string;
 }) {
   const { connected, account } = useWallet();
-  const { transfer } = useAptTransfer();
+  const { settlePurchase } = useForgePurchase();
   const [txStatus, setTxStatus] = useState<TxStatus>("idle");
   const [txMessage, setTxMessage] = useState<string>();
 
@@ -28,12 +29,8 @@ export function ProductBuyButton({
     setTxStatus("pending");
     setTxMessage(undefined);
     try {
-      const nowSec = Math.floor(Date.now() / 1000);
-      const txHash = await transfer(creatorWallet, priceApt, {
-        expireTimestamp: nowSec + 120,
-        gasUnitPrice: 100,
-        maxGasAmount: 300_000,
-      });
+      const intent = await requestPaymentIntent("PRODUCT", productId);
+      const txHash = await settlePurchase(intent);
 
       setTxStatus("verifying");
       const res = await fetch(`/api/products/${productId}/purchase`, {
@@ -41,7 +38,7 @@ export function ProductBuyButton({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           txHash,
-          walletAddress: account.address.toString(),
+          intentId: intent.id,
         }),
       });
       const data = await res.json();

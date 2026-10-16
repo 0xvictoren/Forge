@@ -7,7 +7,7 @@ const STEPS = [
     step: "01",
     icon: Upload,
     title: "Connect & upload",
-    desc: "Connect your Aptos wallet on ShelbyNet. Upload any file — PDFs, video courses, design packs, audio, code. Files are stored permanently on Shelby with on-chain registration.",
+    desc: "Connect your Aptos wallet on ShelbyNet. Upload any file, PDFs, video courses, design packs, audio, code. Files are stored permanently on Shelby with onchain registration.",
   },
   {
     step: "02",
@@ -19,13 +19,13 @@ const STEPS = [
     step: "03",
     icon: Wallet,
     title: "Earn instantly",
-    desc: "Buyers pay with their wallet. You receive APT minus 2%. Every buyer gets a verifiable Certificate of Ownership. No middlemen, no payout delays.",
+    desc: "Buyers pay with their wallet. You receive the sale amount minus 5%. Every buyer gets a verifiable Certificate of Ownership. No middlemen, no payout delays.",
   },
 ];
 
 const FEATURES = [
   { icon: BookOpen, title: "Library", desc: "All purchases in one place with download access and certificates." },
-  { icon: Shield, title: "Certificates", desc: "On-chain proof of ownership for every paid asset." },
+  { icon: Shield, title: "Certificates", desc: "Onchain proof of ownership for every paid asset." },
   { icon: Package, title: "Bundles & Vaults", desc: "Sell packs and organize gated collections for members." },
 ];
 

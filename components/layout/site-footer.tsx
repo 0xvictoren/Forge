@@ -18,7 +18,7 @@ export function SiteFooter() {
           </div>
 
           <div className="text-xs text-[var(--text-muted)] md:text-right">
-            2% platform fee • Certificates of ownership • Shelby storage
+            5% platform fee • Certificates of ownership • Shelby storage
           </div>
         </div>
       </div>

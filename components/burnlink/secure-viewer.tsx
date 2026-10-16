@@ -47,7 +47,7 @@ export function SecureViewerInner() {
     <div className="relative min-h-screen bg-[var(--bg-base)] p-4">
       {blurred && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-xl">
-          <p className="text-[var(--text-primary)]">Content hidden — return to tab</p>
+          <p className="text-[var(--text-primary)]">Content hidden, return to tab</p>
         </div>
       )}
       <div className="mx-auto max-w-4xl">

@@ -54,7 +54,7 @@ export default function ProfileSetupPage() {
         if (av) setAvatarPreview(av);
         if (bn) setBannerPreview(bn);
       } catch {
-        /* ignore — user may be new */
+        /* ignore - user may be new */
       }
     })();
     return () => {
@@ -185,7 +185,7 @@ export default function ProfileSetupPage() {
           <X className="h-4 w-4" />
         </button>
         <p className="mt-2 text-xs text-[var(--text-muted)]">
-          Optional — skip anytime and upload files without a profile.
+          Optional, skip anytime and upload files without a profile.
         </p>
 
         <p className="label-caps">Setup</p>
@@ -291,7 +291,7 @@ export default function ProfileSetupPage() {
               ))}
             </div>
             <div className="rounded-lg bg-[var(--accent-dim)] px-4 py-3 text-sm text-[var(--brand)]">
-              ✦ Unlock payments go directly to your wallet · 2% platform fee on sales
+              ✦ Unlock payments go directly to your wallet · 5% platform fee on sales
             </div>
           </div>
         )}

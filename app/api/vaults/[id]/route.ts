@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { redactSensitiveResponse } from "@/lib/security-response";
 
 async function canAccessVault(userId: string, vaultId: string) {
   const vault = await prisma.vault.findUnique({
@@ -24,6 +25,15 @@ async function canAccessVault(userId: string, vaultId: string) {
   const isOwner = vault.userId === userId;
   const member = vault.members.find((m) => m.userId === userId);
   if (!isOwner && !member && !vault.isPublished) return null;
+
+  if (!isOwner && !member && vault.priceApt != null && vault.priceApt > 0) {
+    const purchase = await prisma.purchase.findFirst({
+      where: { buyerId: userId, vaultId },
+      select: { id: true },
+    });
+    if (!purchase) return null;
+  }
+
   return { vault, role: member?.role || (isOwner ? "OWNER" : "VIEWER") };
 }
 
@@ -38,7 +48,7 @@ export async function GET(
   const access = await canAccessVault(user.id, id);
   if (!access) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  return NextResponse.json(access);
+  return NextResponse.json(redactSensitiveResponse(access));
 }
 
 export async function PATCH(

@@ -2,6 +2,7 @@ import { prisma } from "./db";
 import { getShelbyPublicUrl } from "./shelby";
 import type { ProjectCardData } from "@/components/explore/project-card";
 import { purgeExpiredBurnLinks } from "./shelby-expiry";
+import { resolveThumbnailUrl } from "./default-thumbnail";
 
 export async function getFeedBurnLinks(options: {
   tab: "recommended" | "following";
@@ -44,7 +45,7 @@ export async function getFeedBurnLinks(options: {
   const items: ProjectCardData[] = links.slice(0, take).map((link) => ({
     id: link.id,
     title: link.title || link.file.fileName,
-    thumbnailUrl: getShelbyPublicUrl(link.file.blobId),
+    thumbnailUrl: resolveThumbnailUrl(link.thumbnailRef),
     creatorName: link.owner.displayName || link.owner.username || "Creator",
     creatorHandle:
       link.owner.creatorProfile?.handle || link.owner.username || "",

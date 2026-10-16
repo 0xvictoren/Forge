@@ -2,12 +2,19 @@ import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { verifyAptPayment } from "@/lib/payments";
+import { legacyMarketplacePaymentsEnabled } from "@/lib/payment-policy";
 import { PLATFORM_FEE_BPS } from "@/lib/constants";
 
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  if (!legacyMarketplacePaymentsEnabled()) {
+    return NextResponse.json(
+      { error: "Paid streams are paused while Forge migrates settlement to USDC" },
+      { status: 503 }
+    );
+  }
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 

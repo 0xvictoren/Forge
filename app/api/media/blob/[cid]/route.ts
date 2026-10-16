@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
+import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { getShelbyPublicUrl } from "@/lib/shelby";
 
 export async function GET(
   _request: Request,
@@ -8,38 +8,30 @@ export async function GET(
 ) {
   const { cid } = await params;
   const decoded = decodeURIComponent(cid);
+  const session = await getSessionUser();
 
-  if (decoded.startsWith("dev-")) {
-    const file = await prisma.file.findFirst({
-      where: { blobId: decoded },
-    });
-    if (file?.dataBase64) {
-      const buffer = Buffer.from(file.dataBase64, "base64");
-      return new NextResponse(buffer, {
-        headers: {
-          "Content-Type": file.mimeType,
-          "Content-Length": String(buffer.length),
-          "Cache-Control": "private, max-age=3600",
-        },
-      });
-    }
-    return NextResponse.json({ error: "Blob not found locally" }, { status: 404 });
+  // This legacy endpoint exists only for database-backed development blobs.
+  // Shelby media must use /api/media/shelby, which enforces asset/grant access.
+  if (!decoded.startsWith("dev-")) {
+    return NextResponse.json({ error: "Media not found" }, { status: 404 });
   }
 
-  const url = getShelbyPublicUrl(decoded);
-  try {
-    const res = await fetch(url);
-    if (!res.ok) {
-      return NextResponse.json({ error: "Media not found on Shelby" }, { status: 404 });
-    }
-    const buffer = await res.arrayBuffer();
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const file = await prisma.file.findFirst({
+    where: { blobId: decoded, userId: session.id },
+  });
+  if (file?.dataBase64) {
+    const buffer = Buffer.from(file.dataBase64, "base64");
     return new NextResponse(buffer, {
       headers: {
-        "Content-Type": res.headers.get("Content-Type") || "application/octet-stream",
-        "Cache-Control": "public, max-age=86400",
+        "Content-Type": file.mimeType,
+        "Content-Length": String(buffer.length),
+        "Cache-Control": "private, max-age=3600",
       },
     });
-  } catch {
-    return NextResponse.json({ error: "Failed to fetch from Shelby" }, { status: 502 });
   }
+  return NextResponse.json({ error: "Blob not found locally" }, { status: 404 });
 }
