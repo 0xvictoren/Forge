@@ -3,7 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { isObjectId, jsonError, NO_STORE, rateLimited, requireUser } from "@/lib/datasets/api";
 import { issuePipelineToken } from "@/lib/datasets/pipeline-token";
-import { licenseCoversVersion, logDatasetAccess } from "@/lib/datasets/server";
+import { bestCoveringLicense, logDatasetAccess } from "@/lib/datasets/server";
 
 const schema = z.object({ versionId: z.string().regex(/^[0-9a-f]{24}$/i) });
 
@@ -27,7 +27,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     include: { version: { select: { versionNumber: true } } },
     orderBy: { createdAt: "desc" },
   });
-  const license = licenses.find((l) => licenseCoversVersion(l, version));
+  const license = bestCoveringLicense(licenses, version);
   if (!license) return jsonError("A licence covering this version is required", 403);
 
   const { token, expiresAt } = await issuePipelineToken({ licenseId: license.id, versionId: version.id, userId: auth.user.id });

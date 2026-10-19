@@ -1,7 +1,7 @@
 /**
- * Remove everything created by scripts/e2e-datasets.mts.
+ * Remove everything created by the scripts/e2e-*.mts suites.
  *   npx tsx --env-file=.env scripts/e2e-cleanup.mts
- * Only touches datasets titled "E2E kitchen hand-pose …" tagged "e2e", plus the
+ * Only touches datasets titled "E2E kitchen hand-pose …" or "E2E sponsored …" tagged "e2e", plus the
  * licences, purchases, certificates, intents, logs and compliance projects tied to them.
  */
 import { PrismaClient } from "@prisma/client";
@@ -9,7 +9,7 @@ import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
 const datasets = await prisma.dataset.findMany({
-  where: { title: { startsWith: "E2E kitchen hand-pose" }, tags: { has: "e2e" } },
+  where: { OR: [{ title: { startsWith: "E2E kitchen hand-pose" } }, { title: { startsWith: "E2E sponsored" } }], tags: { has: "e2e" } },
   select: { id: true, ownerId: true, versions: { select: { id: true } } },
 });
 const datasetIds = datasets.map((d) => d.id);
@@ -24,6 +24,7 @@ const payoutIds = [...new Set(agentReads.map((x) => x.payoutId).filter((x): x is
 const r = {
   agentReads: (await prisma.agentRead.deleteMany({ where: { datasetId: { in: datasetIds } } })).count,
   payouts: (await prisma.sellerPayout.deleteMany({ where: { id: { in: payoutIds } } })).count,
+  sponsoredUploads: (await prisma.sponsoredUpload.deleteMany({ where: { versionId: { in: versionIds } } })).count,
   feeds: (await prisma.feedSubscription.deleteMany({ where: { datasetId: { in: datasetIds } } })).count,
   accessLogs: (await prisma.datasetAccessLog.deleteMany({ where: { datasetId: { in: datasetIds } } })).count,
   licenses: (await prisma.datasetLicense.deleteMany({ where: { datasetId: { in: datasetIds } } })).count,

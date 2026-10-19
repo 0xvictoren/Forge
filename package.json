@@ -19,6 +19,7 @@
     "e2e:cleanup": "tsx --env-file=.env scripts/e2e-cleanup.mts",
     "mcp": "tsx scripts/forge-mcp.mts",
     "e2e:agents": "tsx --env-file=.env scripts/e2e-agents.mts",
+    "e2e:sponsor": "tsx --env-file=.env scripts/e2e-sponsor.mts",
     "upload-dataset": "tsx scripts/forge-upload.mts"
   },
   "dependencies": {

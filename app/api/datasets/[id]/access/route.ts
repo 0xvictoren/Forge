@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { isObjectId, jsonError, NO_STORE, requireUser } from "@/lib/datasets/api";
 import { detectFingerprintFormat } from "@/lib/datasets/fingerprint";
-import { licenseCoversVersion, MAX_DELIVERIES_PER_FILE_PER_DAY, MAX_FINGERPRINT_BYTES } from "@/lib/datasets/server";
+import { bestCoveringLicense, MAX_DELIVERIES_PER_FILE_PER_DAY, MAX_FINGERPRINT_BYTES } from "@/lib/datasets/server";
 
 /** Files the signed-in user may download, grouped by version, with delivery mode. */
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -29,7 +29,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
   const versions = dataset.versions
     .map((v) => {
-      const license = isOwner ? null : licenses.find((l) => licenseCoversVersion(l, v));
+      const license = isOwner ? null : bestCoveringLicense(licenses, v);
       if (!isOwner && !license) return null;
       return {
         id: v.id,

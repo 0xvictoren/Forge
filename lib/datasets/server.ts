@@ -11,7 +11,7 @@ import { slugify } from "@/lib/utils";
 import { decryptBufferChunked, decryptStreamChunked } from "./chunked-crypto";
 import { detectFingerprintFormat, fingerprintContent } from "./fingerprint";
 import { sha256Hex } from "./hash";
-import { parseOffers } from "./licenses";
+import { LICENSE_TEMPLATES, parseOffers, type LicenseTemplate } from "./licenses";
 import { parseReadPricing } from "@/lib/agents/pricing";
 import type { Datasheet, DatasetManifest } from "./manifest";
 
@@ -123,6 +123,23 @@ export function licenseCoversVersion(
   return TEMPLATES_WITH_UPDATES.includes(license.template) && version.versionNumber >= license.version.versionNumber;
 }
 
+/**
+ * The licence a delivery is bound to when a buyer holds several: the broadest
+ * rights win, so a paid commercial copy is never fingerprinted as research use.
+ * Ties go to the first in `licenses` (callers pass newest first).
+ */
+export function bestCoveringLicense<L extends DatasetLicense & { version: Pick<DatasetVersion, "versionNumber"> }>(
+  licenses: L[],
+  version: Pick<DatasetVersion, "id" | "versionNumber" | "status">
+): L | undefined {
+  const rank = (l: L) => LICENSE_TEMPLATES.indexOf(l.template as LicenseTemplate);
+  let best: L | undefined;
+  for (const l of licenses) {
+    if (licenseCoversVersion(l, version) && (!best || rank(l) > rank(best))) best = l;
+  }
+  return best;
+}
+
 /** Owners see everything; licensees see the versions their licence covers. */
 export async function resolveFileAccess(userId: string, file: DatasetFile & { version: DatasetVersion & { dataset: Dataset } }) {
   if (file.version.dataset.ownerId === userId) return { allowed: true as const, isOwner: true, license: null };
@@ -131,7 +148,7 @@ export async function resolveFileAccess(userId: string, file: DatasetFile & { ve
     include: { version: { select: { versionNumber: true } } },
     orderBy: { createdAt: "desc" },
   });
-  const license = licenses.find((l) => licenseCoversVersion(l, file.version));
+  const license = bestCoveringLicense(licenses, file.version);
   if (!license) return { allowed: false as const, isOwner: false, license: null };
   return { allowed: true as const, isOwner: false, license };
 }

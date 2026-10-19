@@ -1,14 +1,7 @@
 "use client";
 
 import { AccountAuthenticator, Deserializer, MultiAgentTransaction, type InputGenerateTransactionPayloadData } from "@aptos-labs/ts-sdk";
-import {
-  createBlobKey,
-  createDefaultErasureCodingProvider,
-  generateCommitments,
-  requiredAckCount,
-  ShelbyBlobClient,
-  type ShelbyClient,
-} from "@shelby-protocol/sdk/browser";
+import type { ShelbyClient } from "@shelby-protocol/sdk/browser";
 
 export type SponsorStatus = { enabled: boolean; funded: boolean; remainingBytes: number; dailyBytes: number; sponsor: string };
 
@@ -36,7 +29,12 @@ export async function uploadSponsored(opts: {
   signTransaction: SignTx;
   signAndSubmitTransaction: SignAndSubmit;
   onProgress?: (blobName: string, stage: "commitments" | "registered" | "stored" | "committed") => void;
+  /** Defaults to the page's fetch; scripts pass one that adds the base URL and session cookie. */
+  fetch?: typeof fetch;
 }) {
+  const fetcher = opts.fetch ?? fetch.bind(globalThis);
+  // Loaded on demand: the SDK is ESM-only, and this keeps it out of the studio's initial bundle.
+  const { createBlobKey, createDefaultErasureCodingProvider, generateCommitments, requiredAckCount, ShelbyBlobClient } = await import("@shelby-protocol/sdk/browser");
   const provider = await createDefaultErasureCodingProvider();
   const prepared = [];
   for (const b of opts.blobs) {
@@ -44,7 +42,7 @@ export async function uploadSponsored(opts: {
     opts.onProgress?.(b.blobName, "commitments");
   }
 
-  const prep = await fetch("/api/storage/sponsor", {
+  const prep = await fetcher("/api/storage/sponsor", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -59,7 +57,7 @@ export async function uploadSponsored(opts: {
   const signed = (await opts.signTransaction({ transactionOrPayload: tx })) as AccountAuthenticator | { authenticator: AccountAuthenticator };
   const authenticator = "authenticator" in signed ? signed.authenticator : signed;
 
-  const sub = await fetch("/api/storage/sponsor/submit", {
+  const sub = await fetcher("/api/storage/sponsor/submit", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ versionId: opts.versionId, transaction: prepBody.transaction, mac: prepBody.mac, senderAuthenticator: authenticator.bcsToHex().toString() }),

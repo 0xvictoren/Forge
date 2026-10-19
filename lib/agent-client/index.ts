@@ -113,7 +113,8 @@ export class ForgeAgentClient {
   constructor(opts: { baseUrl: string; sender: AccountAddressInput; signer: MicropaymentSigner | Account; fetch?: typeof fetch; maxPricePerReadOctas?: bigint }) {
     this.baseUrl = opts.baseUrl.replace(/\/$/, "");
     this.sender = addr(opts.sender).toStringLong();
-    this.signer = opts.signer instanceof Account ? signerFromAccount(opts.signer) : opts.signer;
+    // Duck-typed: `instanceof Account` fails when the host loads a second copy of the SDK (ESM + CJS).
+    this.signer = opts.signer.publicKey instanceof Uint8Array ? (opts.signer as MicropaymentSigner) : signerFromAccount(opts.signer as Account);
     this.fetcher = opts.fetch ?? fetch.bind(globalThis);
     this.maxPricePerReadOctas = opts.maxPricePerReadOctas;
   }

@@ -87,9 +87,13 @@ async function main() {
   const seller = new Session(Account.generate());
   const agentWallet = Account.generate();
   const session = Account.generate(); // the only key the agent holds
-  await submit(funder, { function: "0x1::aptos_account::transfer", functionArguments: [seller.address, 10_000_000] });
+  await submit(funder, { function: "0x1::aptos_account::transfer", functionArguments: [seller.address, 30_000_000] });
   await submit(funder, { function: "0x1::aptos_account::transfer", functionArguments: [agentWallet.accountAddress, 25_000_000] });
   await fetch("https://faucet.shelbynet.shelby.xyz/fund?asset=shelbyusd", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ address: seller.address, amount: 100_000_000 }) }).catch(() => undefined);
+  // Faucet quota spent: hand the seller ShelbyUSD from the funder so reads still hit real storage.
+  if ((await usdBalance(seller.address)) === BigInt(0) && (await usdBalance(funder.accountAddress.toString())) >= BigInt(50_000_000)) {
+    await submit(funder, { function: "0x1::primary_fungible_store::transfer", typeArguments: ["0x1::fungible_asset::Metadata"], functionArguments: [SHELBY_USD, seller.address, 50_000_000] });
+  }
   const storage = (await usdBalance(seller.address)) > BigInt(0);
   ok("seller and agent funded", true, storage ? "with ShelbyUSD: real reads" : "no ShelbyUSD: reads simulated at the DB layer");
   await seller.login();

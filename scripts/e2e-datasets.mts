@@ -85,11 +85,28 @@ async function faucet(addr: string, asset?: string, amount = 100_000_000) {
   return !!body.txn_hashes?.length;
 }
 
-/** APT from the funder account (no faucet quota) or the faucet; ShelbyUSD from the faucet. */
+/** Live APT balance from the fullnode (the SDK's indexer-backed lookup can lag). */
+async function aptBalance(addr: string) {
+  const res = await fetch(`${NODE}/accounts/${addr}/balance/0x1::aptos_coin::AptosCoin`);
+  return res.ok ? BigInt(await res.text()) : BigInt(0);
+}
+
+const FUND_APT = BigInt(40_000_000);
+
+/** APT from the funder account while it can cover it (no faucet quota), else the faucet; ShelbyUSD from the faucet, falling back to the funder. */
 async function fund(addr: string, wantUsd: boolean) {
-  if (funder) await submit(funder, { function: "0x1::aptos_account::transfer", functionArguments: [addr, 100_000_000] });
-  else await faucet(addr);
-  if (wantUsd) await faucet(addr, "shelbyusd").catch(() => false);
+  if (funder && (await aptBalance(funder.accountAddress.toString())) >= FUND_APT + BigInt(10_000_000)) {
+    await submit(funder, { function: "0x1::aptos_account::transfer", functionArguments: [addr, FUND_APT] });
+  } else await faucet(addr);
+  if (!wantUsd) return;
+  const fromFaucet = await faucet(addr, "shelbyusd").catch(() => false);
+  if (!fromFaucet && funder && (await usdBalance(funder.accountAddress.toString())) >= BigInt(50_000_000)) {
+    await submit(funder, {
+      function: "0x1::primary_fungible_store::transfer",
+      typeArguments: ["0x1::fungible_asset::Metadata"],
+      functionArguments: [SHELBY_USD, addr, 50_000_000],
+    });
+  }
 }
 
 async function usdBalance(addr: string) {
@@ -172,7 +189,7 @@ async function main() {
   await fund(seller.address, true);
   await fund(buyer.address, false);
   const storage = (await usdBalance(seller.address)) > BigInt(0);
-  ok("funded seller + buyer", true, `${seller.address.slice(0, 10)}… / ${buyer.address.slice(0, 10)}…${funder ? " (APT from funder)" : ""}`);
+  ok("funded seller + buyer", true, `${seller.address.slice(0, 10)}… / ${buyer.address.slice(0, 10)}…${funder ? " (funder or faucet)" : ""}`);
   if (!storage) console.log("  ! no ShelbyUSD for the seller (faucet quota?), running WITHOUT Shelby storage: placeholder blob refs, content checks skipped");
   await seller.login();
   await buyer.login();
