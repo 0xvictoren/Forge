@@ -86,6 +86,8 @@ export async function prepareSponsoredRegistration(input: { userId: string; wall
     sender: input.wallet,
     secondarySignerAddresses: [getSettlementAccount().accountAddress],
     data,
+    // Forge pays the gas too, so sellers who signed in with email need no APT.
+    withFeePayer: true,
     options: { maxGasAmount: 50_000, gasUnitPrice: 100 },
   });
   const txHex = tx.bcsToHex().toString();
@@ -112,10 +114,14 @@ export async function submitSponsoredRegistration(input: { userId: string; walle
     throw new Error("Sponsor mismatch");
   }
 
+  if (!tx.feePayerAddress?.equals(AccountAddress.ZERO)) throw new Error("Fee payer mismatch");
+
   const aptos = getAptosClient();
   const senderAuthenticator = AccountAuthenticator.deserialize(new Deserializer(hex(input.senderAuthenticator)));
+  tx.feePayerAddress = getSettlementAccount().accountAddress;
   const sponsorAuthenticator = aptos.transaction.sign({ signer: getSettlementAccount(), transaction: tx });
-  const pending = await aptos.transaction.submit.multiAgent({ transaction: tx, senderAuthenticator, additionalSignersAuthenticators: [sponsorAuthenticator] });
+  const feePayerAuthenticator = aptos.transaction.signAsFeePayer({ signer: getSettlementAccount(), transaction: tx });
+  const pending = await aptos.transaction.submit.multiAgent({ transaction: tx, senderAuthenticator, additionalSignersAuthenticators: [sponsorAuthenticator], feePayerAuthenticator });
   const done = await aptos.waitForTransaction({ transactionHash: pending.hash, options: { checkSuccess: true } });
   const events = "events" in done ? done.events : [];
   const registered = ShelbyBlobClient.registeredBlobUids(events, AccountAddress.from(SHELBY_DEPLOYER));

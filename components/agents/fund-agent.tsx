@@ -1,5 +1,6 @@
 "use client";
 
+import { useSignInSheet } from "@/components/auth/sign-in-sheet";
 import { motion } from "framer-motion";
 import { useCallback, useEffect, useState } from "react";
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
@@ -39,7 +40,8 @@ function CopyRow({ label, value, secret }: { label: string; value: string; secre
 }
 
 export function FundAgent() {
-  const { connected, account, signAndSubmitTransaction, connect, wallets } = useWallet();
+  const { connected, account, signAndSubmitTransaction } = useWallet();
+  const showSignIn = useSignInSheet((s) => s.show);
   const [config, setConfig] = useState<Config | null>(null);
   const [channel, setChannel] = useState<ChannelState | undefined>(undefined);
   const [budget, setBudget] = useState("1");
@@ -141,8 +143,8 @@ export function FundAgent() {
       </div>
 
       {!connected ? (
-        <button type="button" onClick={() => wallets[0] && connect(wallets[0].name)} className="btn-primary mt-6 w-full">
-          <Wallet className="h-4 w-4" /> Connect wallet
+        <button type="button" onClick={showSignIn} className="btn-primary mt-6 w-full">
+          <Wallet className="h-4 w-4" /> Sign in to continue
         </button>
       ) : channel === undefined ? (
         <div className="skeleton-shimmer mt-6 h-32 rounded-[20px]" />

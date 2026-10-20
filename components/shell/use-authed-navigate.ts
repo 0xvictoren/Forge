@@ -3,9 +3,9 @@
 import { useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
-import { toast } from "sonner";
 import { useAppStore } from "@/lib/store";
 import { ensureSessionForNav, routeNeedsSession, stashAuthReturn } from "@/lib/navigate-with-auth";
+import { useSignInSheet } from "@/components/auth/sign-in-sheet";
 
 /**
  * Make sure a wallet session exists (connecting + signing in if needed).
@@ -13,21 +13,13 @@ import { ensureSessionForNav, routeNeedsSession, stashAuthReturn } from "@/lib/n
  */
 export function useEnsureSession() {
   const { user, setUser, setWallet } = useAppStore();
-  const { connected, account, signMessage, connect, wallets } = useWallet();
+  const { connected, account, signMessage } = useWallet();
+  const showSignIn = useSignInSheet((s) => s.show);
 
   return useCallback(async () => {
     if (user) return true;
     if (!connected) {
-      if (!wallets[0]) {
-        toast.error("Install an Aptos wallet (e.g. Petra) to continue");
-        return false;
-      }
-      try {
-        await connect(wallets[0].name);
-      } catch {
-        return false;
-      }
-      toast.message("Wallet connected, continue to sign in");
+      showSignIn();
       return false;
     }
     const session = await ensureSessionForNav({
@@ -40,7 +32,7 @@ export function useEnsureSession() {
       publicKey: account?.publicKey,
     });
     return !!session;
-  }, [user, setUser, setWallet, connected, account, signMessage, connect, wallets]);
+  }, [user, setUser, setWallet, connected, account, signMessage, showSignIn]);
 }
 
 /**
@@ -51,7 +43,8 @@ export function useEnsureSession() {
 export function useAuthedNavigate() {
   const router = useRouter();
   const { user, setUser, setWallet } = useAppStore();
-  const { connected, account, signMessage, connect, wallets } = useWallet();
+  const { connected, account, signMessage } = useWallet();
+  const showSignIn = useSignInSheet((s) => s.show);
 
   return useCallback(
     async (href: string) => {
@@ -73,18 +66,9 @@ export function useAuthedNavigate() {
         return true;
       }
       stashAuthReturn(href);
-      if (!connected && wallets[0]) {
-        toast.message("Connect your wallet to continue");
-        try {
-          await connect(wallets[0].name);
-        } catch {
-          /* user dismissed */
-        }
-      } else if (!connected) {
-        toast.error("Install an Aptos wallet (e.g. Petra) to continue");
-      }
+      if (!connected) showSignIn();
       return false;
     },
-    [router, user, setUser, setWallet, connected, account, signMessage, connect, wallets]
+    [router, user, setUser, setWallet, connected, account, signMessage, showSignIn]
   );
 }

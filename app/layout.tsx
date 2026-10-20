@@ -1,13 +1,14 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import { WalletProvider } from "@/components/providers/wallet-provider";
+import { ForgeAuthProvider } from "@/components/providers/forge-auth";
 import { ShelbyProvider } from "@/components/providers/shelby-provider";
 import { AppProvider } from "@/components/providers/app-provider";
 import { I18nProvider } from "@/components/providers/i18n-provider";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { WalletSessionSync } from "@/components/providers/wallet-session-sync";
 import { GlassFilters } from "@/components/glass/glass-filters";
+import { SignInSheet } from "@/components/auth/sign-in-sheet";
 import { Toaster } from "sonner";
 
 const inter = Inter({
@@ -53,16 +54,17 @@ export default function RootLayout({
       <body className="antialiased min-h-screen" suppressHydrationWarning>
         <ThemeProvider>
           <I18nProvider>
-            <WalletProvider>
+            <ForgeAuthProvider>
               <ShelbyProvider>
                 <AppProvider>
                   <WalletSessionSync />
                   <GlassFilters />
+                  <SignInSheet />
                   {children}
                   <Toaster position="top-center" closeButton toastOptions={{ className: "forge-toast" }} />
                 </AppProvider>
               </ShelbyProvider>
-            </WalletProvider>
+            </ForgeAuthProvider>
           </I18nProvider>
         </ThemeProvider>
       </body>

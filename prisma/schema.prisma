@@ -16,6 +16,8 @@ model User {
   address           String?
   handle            String?
   walletAddress     String?   @unique
+  /// Privy user id when the account signed up with email (embedded Aptos wallet)
+  privyUserId       String?
   passwordHash      String?
   username          String?   @unique
   displayName       String?
@@ -1138,4 +1140,15 @@ model DatasetSignal {
   createdAt DateTime @default(now())
 
   @@index([datasetId, createdAt])
+}
+
+/// Gas Forge paid for an email account's transaction (lib/sponsor-gas.ts).
+model SponsoredGas {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  txHash    String   @unique
+  function  String
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
 }
