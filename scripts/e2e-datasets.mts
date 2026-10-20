@@ -15,6 +15,7 @@ import { ShelbyNodeClient } from "@shelby-protocol/sdk/node";
 import { bytesToBase64, generateContentKey, wrapKey } from "../lib/encryption";
 import { encryptBlobChunked } from "../lib/datasets/chunked-crypto";
 import { sha256Hex } from "../lib/datasets/hash";
+import { checkOriginality, nodeSample } from "../lib/datasets/originality-node";
 import { decodeSignatures, stripSignatures } from "../lib/datasets/fingerprint";
 import { buildAnchorPayload } from "../lib/datasets/provenance";
 import { buildForgePurchasePayload } from "../lib/forge-purchase";
@@ -121,10 +122,13 @@ async function submit(account: Account, data: Parameters<Aptos["transaction"]["b
   return pending.hash;
 }
 
+/** A per-run take id keeps each run's data unique for the originality check. */
+const TAKE = Date.now().toString(36);
+
 function makeCsv(rows: number) {
-  const lines = ["frame,scene,hand_x,hand_y,action"];
+  const lines = ["frame,take,scene,hand_x,hand_y,action"];
   const actions = ["grasp knife", "slice onion", "move bowl", "pour oil", "stir pan"];
-  for (let i = 0; i < rows; i++) lines.push(`${1000 + i},kitchen_${String(i % 7).padStart(2, "0")},${(0.2 + (i % 50) / 100).toFixed(3)},${(0.4 + (i % 37) / 100).toFixed(3)},${actions[i % actions.length]}`);
+  for (let i = 0; i < rows; i++) lines.push(`${1000 + i},${TAKE}${i.toString(36)},kitchen_${String(i % 7).padStart(2, "0")},${(0.2 + (i % 50) / 100).toFixed(3)},${(0.4 + (i % 37) / 100).toFixed(3)},${actions[i % actions.length]}`);
   return lines.join("\n") + "\n";
 }
 
@@ -231,6 +235,12 @@ async function main() {
     ok("encrypted locally (upload skipped)", cipher.byteLength > plain.byteLength, `${cipher.byteLength} B`);
   }
 
+  step("Originality check");
+  const sampleSha = await sha256Hex(sample);
+  const post = (url: string, body: unknown) => seller.json(url, { method: "POST", json: body });
+  const originality = await checkOriginality(versionId, [nodeSample("frames.csv", plain, plainSha, "text/csv"), nodeSample("frames-sample.csv", sample, sampleSha, "text/csv")], post);
+  ok("original data passes", !originality || originality.passed, originality ? `${originality.score}/10` : "check off on this server");
+
   await seller.json(`/api/datasets/versions/${versionId}/files`, {
     method: "POST",
     json: {
@@ -244,7 +254,7 @@ async function main() {
           isSample: false,
           encryption: { encryptionVersion: 2, wrappedKeyOwner: await wrapKey(contentKey, ownerKey), wrappedKeyShare: await wrapKey(contentKey, shareKey), encryptionShareKey: bytesToBase64(shareKey) },
         },
-        { path: "frames-sample.csv", sizeBytes: sample.byteLength, mimeType: "text/csv", sha256: await sha256Hex(sample), blobRef: encodeBlobRef(seller.address, sampleName), isSample: true, encryption: null },
+        { path: "frames-sample.csv", sizeBytes: sample.byteLength, mimeType: "text/csv", sha256: sampleSha, blobRef: encodeBlobRef(seller.address, sampleName), isSample: true, encryption: null },
       ],
     },
   });
@@ -275,6 +285,17 @@ async function main() {
   const anchorTx = await submit(seller.account, buildAnchorPayload(CONTRACT, prepared.seal));
   await seller.json(`/api/datasets/versions/${versionId}/anchor`, { method: "POST", json: { txHash: anchorTx } });
   ok("seal anchored and verified onchain", true, anchorTx);
+
+  if (originality) {
+    step("Re-uploading sealed data is turned back");
+    const copy = await seller.json<{ version: { id: string } }>("/api/datasets", {
+      method: "POST",
+      json: { title: `E2E kitchen hand-pose copy ${TAKE}`, modality: "TABULAR", tags: ["e2e"], visibility: "listed" },
+    });
+    const reworded = new TextEncoder().encode(csv.toUpperCase());
+    const again = await checkOriginality(copy.version.id, [nodeSample("frames.csv", reworded, await sha256Hex(reworded), "text/csv")], post);
+    ok("a copy in a new dataset fails the check", !!again && !again.passed, again ? `${again.score}/10` : "");
+  }
 
   const sealedAgain = await seller.req(`/api/datasets/versions/${versionId}/files`, {
     method: "POST",

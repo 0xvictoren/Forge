@@ -19,6 +19,7 @@ import { ShelbyNodeClient } from "@shelby-protocol/sdk/node";
 import { bytesToBase64, generateContentKey, wrapKey } from "../lib/encryption";
 import { encryptBlobChunked } from "../lib/datasets/chunked-crypto";
 import { sha256Hex } from "../lib/datasets/hash";
+import { checkOriginality, nodeSample } from "../lib/datasets/originality-node";
 import { buildAnchorPayload } from "../lib/datasets/provenance";
 import { encodeBlobRef } from "../lib/shelby-public";
 
@@ -117,6 +118,23 @@ async function main() {
     await api(`/api/datasets/versions/${versionId}/files`, "POST", { files: pending });
     pending = [];
   };
+
+  // Every upload must pass the originality check before anything is stored.
+  const samples = [];
+  for (const g of groups) {
+    for (const file of await walk(g.root)) {
+      const rel = relative(g.root, file).replace(/\\/g, "/");
+      const plain = new Uint8Array(await readFile(file));
+      samples.push(nodeSample(rel, plain, await sha256Hex(plain), MIME[rel.split(".").pop()?.toLowerCase() || ""] || ""));
+    }
+  }
+  const report = await checkOriginality(versionId, samples, (url, body) => api(url, "POST", body));
+  if (report && !report.passed) {
+    console.error(`✗ originality ${report.score}/10 (needs ${report.threshold}). Nothing was uploaded.`);
+    for (const t of report.tips) console.error(`  • ${t}`);
+    process.exit(1);
+  }
+  if (report) console.log(`✓ originality ${report.score}/10`);
 
   let n = 0;
   for (const g of groups) {

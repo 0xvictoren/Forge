@@ -753,12 +753,19 @@ model Dataset {
   latestVersionId String?  @db.ObjectId
   licenseCount    Int      @default(0)
   viewCount       Int      @default(0)
+  /// Originality score (0-10) of the latest sealed version, set at seal
+  originalityScore Float?
+  /// Rating out of 10 that blends originality with how buyers and agents use it
+  rating          Float?
+  /// Inputs behind `rating`: { market, buyerAverage, buyerCount, signals, updatedAt }
+  ratingDetail    Json?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
   versions        DatasetVersion[]
   licenses        DatasetLicense[]
   accessLogs      DatasetAccessLog[]
+  ratings         DatasetRating[]
 
   @@index([ownerId])
   @@index([visibility, status])
@@ -779,6 +786,8 @@ model DatasetVersion {
   manifestHash   String?
   datasheetHash  String?
   sealHash       String?
+  /// Size-weighted originality score (0-10) across the version's checks
+  originalityScore Float?
   anchorTxHash   String?
   anchorNetwork  String?
   anchoredAt     DateTime?
@@ -1077,4 +1086,56 @@ model SponsoredUpload {
   createdAt DateTime @default(now())
 
   @@index([userId, createdAt])
+}
+
+// ─── Originality and ratings ─────────────────────────────────────────────────
+
+/// One run of the originality service over a batch of files, before upload.
+/// Sealing needs every data file covered by a passing check.
+model OriginalityCheck {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  versionId String   @db.ObjectId
+  datasetId String   @db.ObjectId
+  ownerId   String   @db.ObjectId
+  score     Float
+  passed    Boolean
+  /// SHA-256 of every file the check covered
+  shas      String[]
+  /// Total bytes covered, used to weight the version score
+  bytes     Float    @default(0)
+  report    Json
+  createdAt DateTime @default(now())
+
+  @@index([versionId])
+}
+
+/// A licence holder's own rating of a dataset, 1 to 10.
+model DatasetRating {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  datasetId String   @db.ObjectId
+  dataset   Dataset  @relation(fields: [datasetId], references: [id])
+  userId    String   @db.ObjectId
+  score     Int
+  comment   String?
+  /// HUMAN | AGENT
+  source    String   @default("HUMAN")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([datasetId, userId])
+  @@index([datasetId])
+}
+
+/// Light usage events behind the market rating (agent views and quotes).
+/// Human page views use Dataset.viewCount.
+model DatasetSignal {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  datasetId String   @db.ObjectId
+  /// AGENT_VIEW | AGENT_QUOTE
+  kind      String
+  /// Agent wallet address, when known
+  actor     String?
+  createdAt DateTime @default(now())
+
+  @@index([datasetId, createdAt])
 }

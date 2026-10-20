@@ -19,6 +19,7 @@ import { ForgeAgentClient, openChannelWithAccount, signMicropayment, signerFromA
 import { bytesToBase64, generateContentKey, wrapKey } from "../lib/encryption";
 import { encryptBlobChunked } from "../lib/datasets/chunked-crypto";
 import { sha256Hex } from "../lib/datasets/hash";
+import { checkOriginality, nodeSample } from "../lib/datasets/originality-node";
 import { buildAnchorPayload } from "../lib/datasets/provenance";
 import { encodeBlobRef } from "../lib/shelby-public";
 
@@ -105,7 +106,9 @@ async function main() {
   });
   const datasetId = created.dataset.id;
   const versionId = created.version.id;
-  const lines = ["frame,action", ...Array.from({ length: 2000 }, (_, i) => `${i},grasp ${i % 7}`)];
+  // A per-run take id keeps each run's data unique for the originality check.
+  const take = Date.now().toString(36);
+  const lines = ["frame,take,action", ...Array.from({ length: 2000 }, (_, i) => `${i},${take}${i.toString(36)},grasp ${i % 7}`)];
   const plain = new TextEncoder().encode(lines.join("\n") + "\n");
   const contentKey = generateContentKey();
   const shareKey = generateContentKey();
@@ -121,6 +124,9 @@ async function main() {
     } as ConstructorParameters<typeof ShelbyNodeClient>[0]);
     await shelby.upload({ blobData: cipher, signer: seller.account, blobName });
   }
+  const plainSha = await sha256Hex(plain);
+  const originality = await checkOriginality(versionId, [nodeSample("frames.csv", plain, plainSha, "text/csv")], (url, body) => seller.json(url, { method: "POST", json: body }));
+  ok("originality check passes", !originality || originality.passed, originality ? `${originality.score}/10` : "check off");
   await seller.json(`/api/datasets/versions/${versionId}/files`, {
     method: "POST",
     json: {
@@ -129,7 +135,7 @@ async function main() {
           path: "frames.csv",
           sizeBytes: plain.byteLength,
           mimeType: "text/csv",
-          sha256: await sha256Hex(plain),
+          sha256: plainSha,
           blobRef: encodeBlobRef(seller.address, blobName),
           isSample: false,
           encryption: { encryptionVersion: 2, wrappedKeyOwner: await wrapKey(contentKey, generateContentKey()), wrappedKeyShare: await wrapKey(contentKey, shareKey), encryptionShareKey: bytesToBase64(shareKey) },

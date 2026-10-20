@@ -93,6 +93,8 @@ export function publicDataset(
     readPricing: parseReadPricing(d.readPricing),
     licenseCount: d.licenseCount,
     viewCount: d.viewCount,
+    rating: d.rating,
+    originalityScore: d.originalityScore,
     createdAt: d.createdAt,
     updatedAt: d.updatedAt,
     owner: publicOwner(d.owner),

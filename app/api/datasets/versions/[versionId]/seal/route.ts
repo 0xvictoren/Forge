@@ -10,6 +10,7 @@ import {
   validateDatasheet,
 } from "@/lib/datasets/manifest";
 import { CONTRACT_ADDRESS } from "@/lib/constants";
+import { originalityForSeal } from "@/lib/datasets/originality";
 
 const schema = z.object({ datasheet: z.unknown(), changelog: z.string().trim().max(2000).optional() });
 
@@ -36,6 +37,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ ver
   if (!parsed.success) return jsonError("Invalid request");
   const sheet = validateDatasheet(parsed.data.datasheet);
   if (!sheet.ok) return jsonError(sheet.error);
+
+  const originality = await originalityForSeal(version.id, version.files);
+  if (!originality.ok) return jsonError(originality.error);
 
   let manifest;
   try {
@@ -66,6 +70,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ ver
       datasheetHash,
       sealHash,
       changelog: parsed.data.changelog ?? version.changelog,
+      originalityScore: originality.score,
       fileCount: manifest.totals.fileCount,
       totalBytes: manifest.totals.totalBytes,
     },

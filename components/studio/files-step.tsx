@@ -4,13 +4,15 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 import { CheckCircle2, CloudUpload, Eye, FolderOpen, Loader2, Lock, Trash2, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
-import { useDatasetUpload, type UploadItem } from "@/hooks/use-dataset-upload";
+import { OriginalityError, useDatasetUpload, type UploadItem } from "@/hooks/use-dataset-upload";
+import { OriginalityCard } from "./originality-card";
 import { formatBytes } from "@/lib/datasets/modalities";
 import { cn } from "@/lib/utils";
 import { getSponsorStatus, type SponsorStatus } from "@/lib/storage/sponsored-upload";
 
 const STATUS: Record<UploadItem["status"], string> = {
   queued: "Ready",
+  checking: "Checking originality",
   hashing: "Hashing",
   encrypting: "Encrypting",
   uploading: "Uploading to Shelby",
@@ -36,7 +38,7 @@ export function FilesStep({
   onUploaded: () => void;
   onRemoveExisting?: (id: string) => void;
 }) {
-  const { items, add, remove, toggleSample, run, running } = useDatasetUpload();
+  const { items, add, remove, toggleSample, run, running, report, clearReport } = useDatasetUpload();
   const [drag, setDrag] = useState(false);
   const [sponsor, setSponsor] = useState<SponsorStatus | null>(null);
   useEffect(() => {
@@ -56,7 +58,8 @@ export function FilesStep({
         onUploaded();
       }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Upload failed");
+      if (e instanceof OriginalityError) toast.error("Not original enough to upload yet. See how to improve it below.");
+      else toast.error(e instanceof Error ? e.message : "Upload failed");
     }
   }
 
@@ -86,7 +89,7 @@ export function FilesStep({
         </motion.span>
         <p className="title mt-5">Drop your dataset here</p>
         <p className="mt-1 max-w-md text-[14px] text-[var(--text-secondary)]">
-          Files are hashed and encrypted on this device before upload. Mark a few as free samples, those stay public.
+          Each upload is checked for originality first, then encrypted on this device. Mark a few files as free samples, those stay public.
         </p>
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <button type="button" onClick={() => fileInput.current?.click()} className="btn-primary btn-sm">
@@ -171,6 +174,16 @@ export function FilesStep({
         </div>
       )}
 
+      {report && (
+        <OriginalityCard
+          report={report}
+          onRemoveFlagged={(paths) => {
+            items.filter((i) => paths.includes(i.path) && i.status !== "done").forEach((i) => remove(i.key));
+            clearReport();
+          }}
+        />
+      )}
+
       {queued.length > 0 && (
         <div className="flex flex-col gap-4 rounded-[24px] bg-[var(--bg-surface)] p-5 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -184,7 +197,7 @@ export function FilesStep({
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <button type="button" onClick={upload} disabled={running} className="btn-primary">
               {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Lock className="h-4 w-4" />}
-              {running ? "Working…" : `Encrypt & upload ${queued.length}`}
+              {running ? "Working…" : `Check & upload ${queued.length}`}
             </button>
           </div>
         </div>

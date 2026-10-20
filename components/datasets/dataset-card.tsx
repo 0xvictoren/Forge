@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { BadgeCheck, Files, HardDrive } from "lucide-react";
+import { BadgeCheck, Files, HardDrive, Star } from "lucide-react";
 import { formatBytes, modalityLabel } from "@/lib/datasets/modalities";
 import { MODALITY_COVERS, PHOTOS, photoUrl } from "@/lib/photos";
 import type { PublicDataset } from "@/lib/datasets/server";
@@ -49,6 +49,11 @@ export function DatasetCard({ dataset, priority }: { dataset: PublicDataset; pri
         <h3 className="title line-clamp-2">{dataset.title}</h3>
         {dataset.tagline && <p className="mt-1.5 line-clamp-2 text-[14px] text-[var(--text-secondary)]">{dataset.tagline}</p>}
         <div className="mt-auto flex items-center gap-4 pt-5 text-[13px] text-[var(--text-secondary)]">
+          {dataset.rating != null && (
+            <span className="flex items-center gap-1.5 font-medium tabular text-[var(--text-primary)]" title="Rating out of 10">
+              <Star className="h-3.5 w-3.5 fill-[var(--accent)] text-[var(--accent)]" /> {dataset.rating.toFixed(1)}
+            </span>
+          )}
           {v && (
             <>
               <span className="flex items-center gap-1.5 tabular">

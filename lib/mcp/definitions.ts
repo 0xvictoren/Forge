@@ -18,9 +18,19 @@ export type McpTool = { name: string; title: string; description: string; inputS
 
 export const MCP_TOOLS: McpTool[] = [
   {
+    name: "rate_dataset",
+    title: "Rate a dataset",
+    description: "After reading from a dataset, rate how useful it was from 1 to 10. Free. Ratings move the dataset's public score, so rate honestly.",
+    inputSchema: {
+      type: "object",
+      properties: { dataset: { type: "string", description: "Dataset id or slug" }, score: { type: "integer", minimum: 1, maximum: 10 }, comment: { type: "string" } },
+      required: ["dataset", "score"],
+    },
+  },
+  {
     name: "search_datasets",
     title: "Search datasets",
-    description: "Search Forge for datasets agents can read pay-per-read. Free. Returns ids, prices per GB and seal status.",
+    description: "Search Forge for datasets agents can read pay-per-read. Free. Best-rated first. Returns ids, ratings and originality out of 10, prices per GB and seal status.",
     inputSchema: {
       type: "object",
       properties: {

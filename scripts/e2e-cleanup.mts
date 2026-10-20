@@ -33,6 +33,9 @@ const r = {
   intents: (await prisma.paymentIntent.deleteMany({ where: { kind: "DATASET", targetId: { in: intentTargets } } })).count,
   files: (await prisma.datasetFile.deleteMany({ where: { versionId: { in: versionIds } } })).count,
   versions: (await prisma.datasetVersion.deleteMany({ where: { id: { in: versionIds } } })).count,
+  originalityChecks: (await prisma.originalityCheck.deleteMany({ where: { datasetId: { in: datasetIds } } })).count,
+  signals: (await prisma.datasetSignal.deleteMany({ where: { datasetId: { in: datasetIds } } })).count,
+  ratings: (await prisma.datasetRating.deleteMany({ where: { datasetId: { in: datasetIds } } })).count,
   datasets: (await prisma.dataset.deleteMany({ where: { id: { in: datasetIds } } })).count,
   compliance: (await prisma.complianceProject.deleteMany({ where: { name: "E2E model", ownerId: { in: testUsers } } })).count,
 };
@@ -40,6 +43,15 @@ const r = {
 const vaults = await prisma.memoryVault.findMany({ where: { name: "research-notes" }, select: { id: true } });
 const memory = (await prisma.memoryCheckpoint.deleteMany({ where: { vaultId: { in: vaults.map((v) => v.id) } } })).count;
 await prisma.memoryVault.deleteMany({ where: { id: { in: vaults.map((v) => v.id) } } });
-console.log({ ...r, memoryCheckpoints: memory });
+// Fingerprints held by the originality service.
+let fingerprints = 0;
+const service = process.env.ORIGINALITY_SERVICE_URL?.replace(/\/$/, "");
+if (service && process.env.ORIGINALITY_SERVICE_SECRET) {
+  for (const id of datasetIds) {
+    const res = await fetch(`${service}/v1/datasets/${id}`, { method: "DELETE", headers: { "X-Forge-Key": process.env.ORIGINALITY_SERVICE_SECRET } }).catch(() => null);
+    fingerprints += res?.ok ? ((await res.json()) as { deleted: number }).deleted : 0;
+  }
+}
+console.log({ ...r, memoryCheckpoints: memory, fingerprints });
 console.log(`test wallet users left in place: ${testUsers.length} (they own notifications/activity rows)`);
 await prisma.$disconnect();

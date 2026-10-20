@@ -4,6 +4,7 @@ import { loadReadableFile, quoteFor } from "@/lib/agents/read";
 import { channelState, settlementAddress, syncChannel } from "@/lib/agents/channels";
 import { AGENT_PAYMENT_ASSET, MICROPAYMENTS_MODULE, normalizeAddr } from "@/lib/agents/config";
 import { octasToAptString } from "@/lib/agents/pricing";
+import { recordSignal } from "@/lib/datasets/rating";
 
 /** Price a read (optionally a Range) and, given ?sender=, the exact values to sign. */
 export async function GET(request: Request, { params }: { params: Promise<{ fileId: string }> }) {
@@ -16,6 +17,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ file
   const quote = quoteFor(loaded.file.sizeBytes, rangeHeader, loaded.pricing);
   if ("error" in quote) return jsonError(quote.error ?? "Invalid range", 416);
   const sender = url.searchParams.get("sender");
+  recordSignal(loaded.dataset.id, "AGENT_QUOTE", sender || request.headers.get("x-forge-agent"));
   const channel = sender ? await syncChannel(normalizeAddr(sender)).catch(() => null) : null;
   const state = channelState(channel);
   return NextResponse.json(

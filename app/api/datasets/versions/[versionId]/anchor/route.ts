@@ -4,6 +4,8 @@ import { prisma } from "@/lib/db";
 import { isObjectId, jsonError, requireUser } from "@/lib/datasets/api";
 import { verifyAnchorTransaction } from "@/lib/datasets/provenance-server";
 import { notifyFeed } from "@/lib/agents/feeds";
+import { commitFingerprints } from "@/lib/datasets/originality";
+import { refreshRating } from "@/lib/datasets/rating";
 
 const schema = z.union([
   z.object({ txHash: z.string().regex(/^0x[0-9a-f]{64}$/i) }),
@@ -50,7 +52,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ ver
     where: { id: version.id },
     data: { status: "SEALED", sealedAt: new Date(), ...anchor },
   });
-  await prisma.dataset.update({ where: { id: version.datasetId }, data: { latestVersionId: sealed.id } });
+  await prisma.dataset.update({
+    where: { id: version.datasetId },
+    data: { latestVersionId: sealed.id, ...(sealed.originalityScore != null ? { originalityScore: sealed.originalityScore } : {}) },
+  });
+  await commitFingerprints(sealed.id);
+  await refreshRating(version.datasetId).catch(() => null);
   await notifyFeed(version.datasetId, new URL(request.url).origin).catch(() => 0);
 
   return NextResponse.json({ version: { id: sealed.id, sealHash: sealed.sealHash, anchorTxHash: sealed.anchorTxHash } });

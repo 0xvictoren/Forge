@@ -20,7 +20,9 @@
     "mcp": "tsx scripts/forge-mcp.mts",
     "e2e:agents": "tsx --env-file=.env scripts/e2e-agents.mts",
     "e2e:sponsor": "tsx --env-file=.env scripts/e2e-sponsor.mts",
-    "upload-dataset": "tsx scripts/forge-upload.mts"
+    "upload-dataset": "tsx scripts/forge-upload.mts",
+    "originality": "tsx --env-file=.env scripts/originality-dev.mts",
+    "test:originality": "cd services/originality && python -m unittest discover -s tests -t ."
   },
   "dependencies": {
     "@aptos-labs/ts-sdk": "^5.2.1",

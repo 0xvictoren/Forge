@@ -12,16 +12,27 @@ import { encodeBlobRef } from "@/lib/shelby-public";
 import { formatShelbyUploadError } from "@/lib/shelby-upload-errors";
 import { getShelbyBrowserClient } from "@/lib/shelby-browser";
 import { getSponsorStatus, uploadSponsored } from "@/lib/storage/sponsored-upload";
+import { sampleFile } from "@/lib/datasets/originality-sample";
+import { batchSamples, combineReports, type OriginalityReport } from "@/lib/datasets/originality-types";
 
 export type UploadItem = {
   key: string;
   file: File;
   path: string;
   isSample: boolean;
-  status: "queued" | "hashing" | "encrypting" | "uploading" | "registering" | "done" | "error";
+  status: "queued" | "checking" | "hashing" | "encrypting" | "uploading" | "registering" | "done" | "error";
   progress: number;
   error?: string;
+  /** Set once hashed, so the originality check and the upload hash once. */
+  sha256?: string;
 };
+
+/** Thrown when an upload scores below the originality threshold. */
+export class OriginalityError extends Error {
+  constructor(public report: OriginalityReport) {
+    super(`Originality score ${report.score}/10. Uploads need at least ${report.threshold}.`);
+  }
+}
 
 /** Keep each Shelby batch (one wallet signature) within a sane memory budget. */
 const BATCH_BYTES = 192 * 1024 * 1024;
@@ -42,6 +53,8 @@ export function useDatasetUpload() {
   const uploadBlobs = useUploadBlobs({});
   const [items, setItems] = useState<UploadItem[]>([]);
   const [running, setRunning] = useState(false);
+  const [report, setReport] = useState<OriginalityReport | null>(null);
+  const [passedShas] = useState(() => new Set<string>());
 
   const update = (key: string, patch: Partial<UploadItem>) =>
     setItems((list) => list.map((i) => (i.key === key ? { ...i, ...patch } : i)));
@@ -73,6 +86,45 @@ export function useDatasetUpload() {
   );
   const reset = useCallback(() => setItems([]), []);
 
+  /** Hash, sample and score queued files. Throws OriginalityError on a fail. */
+  const check = useCallback(
+    async (versionId: string, queued: UploadItem[]) => {
+      const pending = queued.filter((i) => !i.sha256 || !passedShas.has(i.sha256));
+      if (!pending.length) return;
+      const samples = [];
+      for (const item of pending) {
+        update(item.key, { status: "checking", progress: 0, error: undefined });
+        const sha256 = item.sha256 ?? (await sha256File(item.file, (p) => update(item.key, { progress: p * 0.3 })));
+        item.sha256 = sha256;
+        update(item.key, { sha256, progress: 0.32 });
+        samples.push(await sampleFile(item.file, item.path, sha256));
+      }
+      const reports: OriginalityReport[] = [];
+      try {
+        for (const batch of batchSamples(samples)) {
+          const res = await fetch(`/api/datasets/versions/${versionId}/originality`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ files: batch }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || "The originality check failed");
+          if (data.report) reports.push(data.report);
+        }
+      } catch (e) {
+        pending.forEach((i) => update(i.key, { status: "queued", progress: 0 }));
+        throw e;
+      }
+      if (!reports.length) return; // check switched off for local development
+      const combined = combineReports(reports);
+      setReport(combined);
+      pending.forEach((i) => update(i.key, { status: "queued", progress: 0 }));
+      if (!combined.passed) throw new OriginalityError(combined);
+      combined.checkedShas.forEach((s) => passedShas.add(s));
+    },
+    [passedShas]
+  );
+
   /**
    * Encrypt (data files) and upload every queued item, then register them on
    * the draft version. Returns the number of files registered.
@@ -85,6 +137,7 @@ export function useDatasetUpload() {
       setRunning(true);
       let registered = 0;
       try {
+        await check(opts.versionId, queued);
         const ownerKey = queued.some((q) => !q.isSample) ? await ensureOwnerKey() : null;
         const owner = account.address.toString();
         // Forge pays Shelby storage when sponsorship is on and quota remains.
@@ -119,7 +172,7 @@ export function useDatasetUpload() {
           for (const item of batch) {
             try {
               update(item.key, { status: "hashing", progress: 0, error: undefined });
-              const sha256 = await sha256File(item.file, (p) => update(item.key, { progress: p * 0.4 }));
+              const sha256 = item.sha256 ?? (await sha256File(item.file, (p) => update(item.key, { progress: p * 0.4 })));
               const base = `forge/datasets/${opts.datasetId}/v${opts.versionNumber}/${item.isSample ? "samples/" : ""}${safeBlobSegment(item.path)}`;
               if (item.isSample) {
                 prepared.push({ item, blobName: base, blobData: new Uint8Array(await item.file.arrayBuffer()), sha256, encryption: null });
@@ -212,8 +265,8 @@ export function useDatasetUpload() {
         setRunning(false);
       }
     },
-    [items, connected, account, signAndSubmitTransaction, signTransaction, ensureOwnerKey, uploadBlobs]
+    [items, connected, account, signAndSubmitTransaction, signTransaction, ensureOwnerKey, uploadBlobs, check]
   );
 
-  return { items, add, remove, toggleSample, rename, reset, run, running, sponsored };
+  return { items, add, remove, toggleSample, rename, reset, run, running, sponsored, report, clearReport: () => setReport(null) };
 }

@@ -12,6 +12,8 @@ import { signMicropayment, signerFromAccount } from "@/lib/agent-client";
 import { appendCheckpoint, verifyCheckpoint } from "@/lib/agents/memory";
 import { sha256Hex } from "@/lib/datasets/hash";
 import { checkRateLimit, requestIp } from "@/lib/rate-limit";
+import { prisma } from "@/lib/db";
+import { recordSignal, refreshRating } from "@/lib/datasets/rating";
 
 export const runtime = "nodejs";
 
@@ -59,6 +61,7 @@ async function callTool(request: Request, name: string, args: Record<string, unk
     }
     case "get_dataset": {
       const d = await getAgentDataset(String(args.dataset || ""), origin);
+      if (d) recordSignal(d.dataset.id, "AGENT_VIEW", agent?.sender);
       return d ? toolText(d) : toolText("Dataset not found or not available pay-per-read.", true);
     }
     case "verify_provenance": {
@@ -74,6 +77,7 @@ async function callTool(request: Request, name: string, args: Record<string, unk
       if (!loaded) return toolText("File not found or not available pay-per-read.", true);
       const q = quoteFor(loaded.file.sizeBytes, rangeOf(args), loaded.pricing);
       if ("error" in q) return toolText(q.error ?? "Invalid range", true);
+      recordSignal(loaded.dataset.id, "AGENT_QUOTE", agent?.sender);
       return toolText({ fileId, path: loaded.file.path, bytes: q.bytes, price: `${octasToAptString(q.priceOctas)} APT`, priceOctas: q.priceOctas.toString() });
     }
     case "channel_status": {
@@ -114,6 +118,28 @@ async function callTool(request: Request, name: string, args: Record<string, unk
         agentSignature: "hosted-mcp",
       });
       return toolText({ sequence: cp.sequence, entryHash: cp.entryHash, verify: `${origin}/api/agent/memory/verify?entry=${cp.entryHash}` });
+    }
+    case "rate_dataset": {
+      if (!agent?.session) return toolText("rate_dataset needs X-Forge-Agent and X-Forge-Session-Key headers.", true);
+      const ch = await syncChannel(agent.sender).catch(() => null);
+      if (!ch || `0x${Buffer.from(agent.session.publicKey.toUint8Array()).toString("hex")}` !== ch.publicKey.toLowerCase()) {
+        return toolText("Session key does not match your channel.", true);
+      }
+      const score = num(args.score);
+      if (!score || score < 1 || score > 10) return toolText("score must be an integer from 1 to 10", true);
+      const ref = String(args.dataset || "");
+      const dataset = await prisma.dataset.findFirst({ where: isObjectId(ref) ? { id: ref } : { slug: ref }, select: { id: true } });
+      if (!dataset) return toolText("Dataset not found.", true);
+      const read = await prisma.agentRead.findFirst({ where: { datasetId: dataset.id, channelId: ch.id }, select: { buyerId: true } });
+      if (!read) return toolText("Read from this dataset before rating it.", true);
+      const comment = typeof args.comment === "string" ? args.comment.slice(0, 1000) : undefined;
+      await prisma.datasetRating.upsert({
+        where: { datasetId_userId: { datasetId: dataset.id, userId: read.buyerId } },
+        create: { datasetId: dataset.id, userId: read.buyerId, score, comment, source: "AGENT" },
+        update: { score, comment },
+      });
+      const refreshed = await refreshRating(dataset.id);
+      return toolText({ rated: score, datasetRating: refreshed?.rating ?? null });
     }
     case "cite_sources": {
       if (!agent) return toolText("Send X-Forge-Agent with your wallet address.", true);

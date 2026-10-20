@@ -2,7 +2,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { BadgeCheck, Bot, CalendarDays, Files, HardDrive, ShieldCheck, Users } from "lucide-react";
+import { BadgeCheck, Bot, CalendarDays, Files, HardDrive, ShieldCheck, Sparkles, Star, Users } from "lucide-react";
+import { RateDataset } from "@/components/datasets/rate-dataset";
 import { octasToAptString, quoteReadOctas } from "@/lib/agents/pricing";
 import { prisma } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
@@ -43,12 +44,15 @@ export default async function DatasetPage({ params }: { params: Promise<{ slug: 
   const held = user
     ? await prisma.datasetLicense.findMany({ where: { buyerId: user.id, datasetId: row.id, status: "ACTIVE" }, select: { template: true } })
     : [];
+  const myRating = user && held.length ? await prisma.datasetRating.findUnique({ where: { datasetId_userId: { datasetId: row.id, userId: user.id } }, select: { score: true } }) : null;
 
   if (!isOwner) {
     prisma.dataset.update({ where: { id: row.id }, data: { viewCount: { increment: 1 } } }).catch(() => undefined);
   }
 
   const stats = [
+    dataset.rating != null && { icon: Star, label: "Rating", value: `${dataset.rating.toFixed(1)} / 10` },
+    dataset.originalityScore != null && { icon: Sparkles, label: "Originality", value: `${dataset.originalityScore.toFixed(1)} / 10` },
     v && { icon: HardDrive, label: "Size", value: formatBytes(v.totalBytes) },
     v && { icon: Files, label: "Files", value: v.fileCount.toLocaleString() },
     { icon: Users, label: "Licences", value: dataset.licenseCount.toLocaleString() },
@@ -88,7 +92,7 @@ export default async function DatasetPage({ params }: { params: Promise<{ slug: 
         </div>
       </section>
 
-      <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {stats.map((s) => (
           <div key={s.label} className="surface-muted flex items-center gap-3 px-4 py-4">
             <s.icon className="h-5 w-5 text-[var(--text-muted)]" />
@@ -123,6 +127,7 @@ export default async function DatasetPage({ params }: { params: Promise<{ slug: 
             available={dataset.status === "PUBLISHED" && dataset.visibility === "listed" && !!v && dataset.offers.length > 0}
             agentOnly={dataset.offers.length === 0 && dataset.readPricing.enabled}
           />
+          {held.length > 0 && !isOwner && <RateDataset datasetId={dataset.id} initial={myRating?.score} />}
           {dataset.readPricing.enabled && v && (
             <div className="surface mt-4 p-5">
               <div className="flex items-center gap-2">

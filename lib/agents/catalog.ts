@@ -12,7 +12,8 @@ export async function listAgentDatasets(input: { q?: string | null; modality?: s
   if (input.modality && isModality(input.modality)) where.modality = input.modality;
   const q = input.q?.trim().slice(0, 80);
   if (q) where.OR = [{ title: { contains: q, mode: "insensitive" } }, { tagline: { contains: q, mode: "insensitive" } }, { tags: { has: q.toLowerCase() } }];
-  const rows = await prisma.dataset.findMany({ where, take: 100, orderBy: { createdAt: "desc" }, include: { versions: { where: { status: "SEALED" } } } });
+  // Best-rated first, so agents land on data that others kept using.
+  const rows = await prisma.dataset.findMany({ where, take: 100, orderBy: [{ rating: "desc" }, { createdAt: "desc" }], include: { versions: { where: { status: "SEALED" } } } });
   return rows
     .map((d) => ({ d, pricing: parseReadPricing(d.readPricing), v: d.versions.find((x) => x.id === d.latestVersionId) }))
     .filter((x) => x.pricing.enabled && x.v)
@@ -23,6 +24,8 @@ export async function listAgentDatasets(input: { q?: string | null; modality?: s
       tagline: d.tagline,
       modality: d.modality,
       tags: d.tags,
+      rating: d.rating,
+      originality: d.originalityScore,
       pricing: {
         pricePerGb: String(pricing.pricePerGbApt),
         minCharge: String(pricing.minChargeApt),
@@ -47,7 +50,7 @@ export async function getAgentDataset(idOrSlug: string, origin: string) {
   const availability = await checkAvailability(version.id).catch(() => null);
   return {
     availability,
-    dataset: { id: dataset.id, slug: dataset.slug, title: dataset.title, description: dataset.description, modality: dataset.modality },
+    dataset: { id: dataset.id, slug: dataset.slug, title: dataset.title, description: dataset.description, modality: dataset.modality, rating: dataset.rating, originality: dataset.originalityScore },
     licence: "METERED: issued automatically on your first paid read. Each read is fingerprinted to it.",
     pricing: { pricePerGb: String(pricing.pricePerGbApt), minCharge: String(pricing.minChargeApt), unit: "APT" },
     provenance: {
