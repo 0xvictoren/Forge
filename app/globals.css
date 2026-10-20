@@ -742,6 +742,16 @@ textarea.field {
   animation: pulse-ring 1.8s var(--ease-out) infinite;
 }
 
+/* Entrance that runs without JavaScript, so the hero is never blank. */
+@keyframes rise {
+  from { opacity: 0; transform: translateY(22px); }
+  to { opacity: 1; transform: none; }
+}
+
+.rise {
+  animation: rise 0.9s var(--ease-out) both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;

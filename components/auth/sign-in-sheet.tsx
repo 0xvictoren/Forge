@@ -8,7 +8,7 @@ import { create } from "zustand";
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { useForgeAuth } from "@/components/providers/forge-auth";
 import { FORGE_ACCOUNT_WALLET } from "@/lib/privy/forge-account-wallet";
-import { ForgeMark } from "@/components/shell/forge-mark";
+import { ForgeWordmark } from "@/components/shell/forge-mark";
 import { cn } from "@/lib/utils";
 
 export const useSignInSheet = create<{ open: boolean; show: () => void; hide: () => void }>((set) => ({
@@ -37,7 +37,8 @@ export function SignInSheet() {
   const auth = useForgeAuth();
   const { wallets, connect } = useWallet();
   const [showWallets, setShowWallets] = useState(!auth.emailEnabled);
-  const external = wallets.filter((w) => w.name !== FORGE_ACCOUNT_WALLET);
+  // Aptos Connect lists itself as "Continue with Google/Apple"; with email sign-in on, that would be a confusing second Google button.
+  const external = wallets.filter((w) => w.name !== FORGE_ACCOUNT_WALLET && !(auth.emailEnabled && /^continue with/i.test(w.name)));
 
   const pick = async (name: string) => {
     hide();
@@ -71,7 +72,7 @@ export function SignInSheet() {
                 </DialogPrimitive.Close>
 
                 <div className="flex flex-col items-center pt-4 text-center">
-                  <ForgeMark size={34} />
+                  <ForgeWordmark height={30} href="/" />
                   <DialogPrimitive.Title className="mt-5 text-[24px] font-semibold tracking-[-0.02em]">Sign in to Forge</DialogPrimitive.Title>
                   <p className="mt-1.5 max-w-[300px] text-[15px] leading-snug text-[var(--text-secondary)]">Sell and license data in minutes. No wallet or crypto needed.</p>
                 </div>
